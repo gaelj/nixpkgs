@@ -88,11 +88,12 @@ buildPythonPackage rec {
       "test_multiclass_logreg6"
     ];
 
-  meta = with lib; {
+  meta = {
     homepage = "https://jaxopt.github.io";
     description = "Hardware accelerated, batchable and differentiable optimizers in JAX";
     changelog = "https://github.com/google/jaxopt/releases/tag/jaxopt-v${version}";
-    license = licenses.asl20;
-    maintainers = with maintainers; [ bcdarwin ];
+    license = lib.licenses.asl20;
+    maintainers = with lib.maintainers; [ bcdarwin ];
+    broken = stdenv.isDarwin;
   };
 }
