@@ -79,7 +79,7 @@ stdenv.mkDerivation rec {
   src = fetchurl {
     name = "${pname}-${version}.tar.gz";
     url = "https://azuredatastudio-update.azurewebsites.net/${version}/linux-x64/stable";
-    sha256 = "sha256-JDNdMy0Wk6v2pMKS+NzSbsrffaEG2IneZO+K9pBFX48=";
+    sha256 = "sha256-bshkpcs1Ob7gdBWerjEWLJ/FUBjcwYb6Mv+cIIaxDWw=";
   };
 
   nativeBuildInputs = [
