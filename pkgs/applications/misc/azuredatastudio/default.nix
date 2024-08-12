@@ -72,7 +72,7 @@ in
 stdenv.mkDerivation rec {
 
   pname = "azuredatastudio";
-  version = "1.48.1";
+  version = "1.49.0";
 
   desktopItems = [ desktopItem urlHandlerDesktopItem ];
 
