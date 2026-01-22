@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+
+set -e
+
+git fetch --prune --all
+
+rebase_and_push() {
+    local branch="$1"
+    local upstream="$2"
+
+    echo "Processing $branch..."
+    git switch "$branch"
+
+    # Check if branch is already up to date with upstream
+    local merge_base=$(git merge-base HEAD "$upstream")
+    local upstream_hash=$(git rev-parse "$upstream")
+
+    if [ "$merge_base" = "$upstream_hash" ]; then
+        echo "ℹ️  $branch already based on $upstream, skipping"
+        return 0
+    fi
+
+    # Capture the commit hash before rebase
+    local before_hash=$(git rev-parse HEAD)
+
+    # Attempt rebase and capture exit code
+    if ! git rebase "$upstream"; then
+        echo "❌ Conflict detected on $branch. Aborting rebase."
+        git rebase --abort
+        return 1
+    fi
+
+    # Capture the commit hash after rebase
+    local after_hash=$(git rev-parse HEAD)
+
+    # Check if rebase actually changed anything
+    if [ "$before_hash" = "$after_hash" ]; then
+        echo "ℹ️  No changes for $branch, skipping push"
+    else
+        echo "✓ Rebased $branch, pushing..."
+        git push --force
+    fi
+
+    return 0
+}
+
+# Array of branches and their upstreams
+declare -a branches=(
+    #"llama-swap-fix-ffmeg-whisper:upstream/master"
+    #"llama-swap-165-176:upstream/master"
+    "gaelj-ca:upstream/master"
+    #"make-activation-scripts-scalable:upstream/master"
+    "fix-python-binance-build:upstream/master"
+    "replace-rev-with-git-tag:upstream/master"
+    "crowdesc-direct-cscli-pkg-ref:upstream/master"
+    #"add-rebase-script:upstream/master"
+    #"update-sqlit-tui:upstream/master"
+    "update-crowdsec-1.7.4:upstream/master"
+    "gaelj-pkgs:upstream/nixos-unstable"
+)
+
+for entry in "${branches[@]}"; do
+    IFS=':' read -r branch upstream <<< "$entry"
+    if ! rebase_and_push "$branch" "$upstream"; then
+        echo "Stopping due to conflict on $branch"
+        exit 1
+    fi
+    echo ""
+done
+
+echo "✓ All branches processed successfully"
