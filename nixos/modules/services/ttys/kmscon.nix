@@ -90,7 +90,7 @@ in
 
       package = mkPackageOption pkgs "kmscon" { };
 
-      hwRender = mkEnableOption "3D hardware acceleration to render the console";
+      hwRender = mkEnableOption "hardware acceleration + DRM backend";
 
       fonts = mkOption {
         description = "Fonts used by kmscon, in order of priority.";
@@ -168,6 +168,7 @@ in
             "--"
             loginScript
           ]
+
         ))
       ];
 
@@ -193,10 +194,14 @@ in
             ) config.services.xserver.xkb
           )
         );
-        render = optionals cfg.hwRender [
-          "drm"
-          "hwaccel"
-        ];
+        render =
+          if cfg.hwRender then
+            [
+              "drm"
+              "hwaccel"
+            ]
+          else
+            [ "no-drm" ];
         fonts =
           optional (cfg.fonts != null)
             "font-name=${lib.concatMapStringsSep ", " (f: f.name) cfg.fonts}";
