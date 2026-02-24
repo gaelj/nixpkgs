@@ -70,6 +70,25 @@ buildPythonPackage (finalAttrs: {
     # https://docs.pytest.org/en/latest/deprecations.html#py-path-local-arguments-for-hooks-replaced-with-pathlib-path
     # Upstream PR: https://github.com/plotly/plotly.py/pull/5521
     rm plotly/conftest.py
+  ''
+  # AttributeError: module 'numpy' has no attribute 'in1d'
+  + ''
+    substituteInPlace \
+      tests/test_optional/test_px/test_px.py \
+      tests/test_optional/test_px/test_px_functions.py \
+      --replace-warn "np.in1d(" "np.isin("
+  ''
+  + ''
+    substituteInPlace plotly/figure_factory/_violin.py \
+      --replace-warn \
+        'np.percentile(x, 50, interpolation="linear")' \
+        'np.percentile(x, 50, method="linear")' \
+      --replace-warn \
+        'np.percentile(x, 25, interpolation="lower")' \
+        'np.percentile(x, 25, method="lower")' \
+      --replace-warn \
+        'np.percentile(x, 75, interpolation="higher")' \
+        'np.percentile(x, 75, method="higher")'
   '';
 
   env.SKIP_NPM = true;
@@ -109,6 +128,7 @@ buildPythonPackage (finalAttrs: {
     xarray
   ]
   ++ lib.concatAttrValues finalAttrs.passthru.optional-dependencies;
+
 
   disabledTests = [
     # failed pinning test, sensitive to dep versions
