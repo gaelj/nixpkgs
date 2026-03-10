@@ -10616,7 +10616,9 @@ with pkgs;
 
   termdown = python3Packages.callPackage ../applications/misc/termdown { };
 
-  terminaltexteffects = with python3Packages; toPythonApplication terminaltexteffects;
+  creditagricole_particuliers = python3Packages.callPackage ../applications/misc/creditagricole_particuliers { };
+
+  terminaltexteffects = with python3Packages; toPythonApplication terminaltexteffects ;
 
   inherit
     (callPackage ../applications/graphics/tesseract {
