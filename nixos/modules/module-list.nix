@@ -849,6 +849,7 @@
   ./services/matrix/synapse.nix
   ./services/matrix/tuwunel.nix
   ./services/misc/airsonic.nix
+  ./services/misc/airsonic-refix.nix
   ./services/misc/amazon-ssm-agent.nix
   ./services/misc/ananicy.nix
   ./services/misc/angrr.nix
