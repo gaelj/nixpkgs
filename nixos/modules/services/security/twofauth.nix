@@ -102,6 +102,10 @@ let
     echo "Ensuring writable state directories exist..."
     for d in \
         storage/app/public \
+        storage/app/public/icons \
+        storage/app/logos \
+        storage/app/imagesLink \
+        storage/app/qrcodes \
         storage/framework/cache/data \
         storage/framework/sessions \
         storage/framework/views \
@@ -117,6 +121,11 @@ let
       cp -rn "${appDir}/storage/." "${cfg.stateDir}/storage/" 2>/dev/null || true
       touch "$SEED_FLAG"
     fi
+    # The store is read-only so cp preserves those permissions.
+    # Forcibly make everything under storage writable by the service user.
+    chmod -R u+rwX "${cfg.stateDir}/storage/"
+    # public/ subtree needs group-read so nginx can serve icon files.
+    chmod -R g+rX "${cfg.stateDir}/storage/app/public/"
 
     echo "Running artisan migrate..."
     ${artisan} migrate --force --no-interaction
@@ -334,12 +343,20 @@ in
         group = cfg.group;
         isSystemUser = true;
       };
+
       users.groups.${cfg.group} = { };
+
+      users.users.${config.services.nginx.user}.extraGroups = [ cfg.group ];
 
       systemd.tmpfiles.rules = [
         "d ${cfg.stateDir}                              0700 ${cfg.user} ${cfg.group} - -"
         "d ${cfg.stateDir}/storage                      0700 ${cfg.user} ${cfg.group} - -"
-        "d ${cfg.stateDir}/storage/app/public           0700 ${cfg.user} ${cfg.group} - -"
+        "d ${cfg.stateDir}/storage/app/public           0750 ${cfg.user} ${cfg.group} - -"
+        "d ${cfg.stateDir}/storage/app/public/icons     0750 ${cfg.user} ${cfg.group} - -"
+        "Z ${cfg.stateDir}/storage/app/public           0750 ${cfg.user} ${cfg.group} - -"
+        "d ${cfg.stateDir}/storage/app/logos            0700 ${cfg.user} ${cfg.group} - -"
+        "d ${cfg.stateDir}/storage/app/imagesLink       0700 ${cfg.user} ${cfg.group} - -"
+        "d ${cfg.stateDir}/storage/app/qrcodes          0700 ${cfg.user} ${cfg.group} - -"
         "d ${cfg.stateDir}/storage/framework/cache/data 0700 ${cfg.user} ${cfg.group} - -"
         "d ${cfg.stateDir}/storage/framework/sessions   0700 ${cfg.user} ${cfg.group} - -"
         "d ${cfg.stateDir}/storage/framework/views      0700 ${cfg.user} ${cfg.group} - -"
@@ -411,6 +428,11 @@ in
         };
 
         path = [ pkgs.replace-secret ];
+
+        environment = {
+          # PHP tools (psysh/tinker) need a writable HOME.
+          HOME = cfg.stateDir;
+        };
       };
 
       services.phpfpm.pools.twofauth = {
