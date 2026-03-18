@@ -198,11 +198,42 @@ in
         ProtectKernelModules = true;
         ProtectKernelTunables = true;
         ProtectControlGroups = true;
-        ProcSubset = "all";
         RestrictNamespaces = true;
         RestrictRealtime = true;
         SystemCallArchitectures = "native";
         UMask = "0077";
+
+        NoNewPrivileges = true;
+        CapabilityBoundingSet = "";
+        AmbientCapabilities = "";
+
+        ProtectSystem = "strict";
+        ReadWritePaths = [
+          "/var/lib/glance"
+          "/run/glance"
+        ];
+        PrivateDevices = true;
+        PrivateIPC = true;
+
+        ProcSubset = "pid";
+        ProtectProc = "invisible";
+
+        RestrictAddressFamilies = [
+          "AF_INET"
+          "AF_INET6"
+          "AF_UNIX"
+        ];
+        RestrictSUIDSGID = true;
+
+        SystemCallFilter = [
+          "@system-service"
+          "~@privileged"
+          "~@resources"
+        ];
+        SystemCallErrorNumber = "EPERM";
+
+        LimitNOFILE = 65536;
+        LimitNPROC = 256;
       };
     };
 
