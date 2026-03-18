@@ -52,6 +52,14 @@ in
       (assertKey "playlists-path")
     ];
 
+    users.users.gonic = {
+      isSystemUser = true;
+      group = "gonic";
+      description = "Gonic music server daemon user";
+    };
+
+    users.groups.gonic = {};
+
     systemd.services.gonic = {
       description = "Gonic Media Server";
       after = [ "network.target" ];
@@ -65,11 +73,18 @@ in
             ) cfg.settings;
           in
           "${lib.getExe cfg.package} -config-path ${settingsFormat.generate "gonic" filteredSettings}";
+
+        User = "gonic";
+        Group = "gonic";
         StateDirectory = "gonic";
         CacheDirectory = "gonic";
         WorkingDirectory = "/var/lib/gonic";
         RuntimeDirectory = "gonic";
+        RuntimeDirectoryMode = "0700";
+        UMask = "0077";
+
         RootDirectory = "/run/gonic";
+        MountAPIVFS = true;
         ReadWritePaths = "";
         BindPaths = [
           cfg.settings.playlists-path
@@ -79,37 +94,53 @@ in
         BindReadOnlyPaths = [
           # gonic can access scrobbling services
           "-/etc/resolv.conf"
+          "-/etc/hosts"
           "${config.security.pki.caBundle}:/etc/ssl/certs/ca-certificates.crt"
           builtins.storeDir
         ]
         ++ cfg.settings.music-path
         ++ lib.optional (cfg.settings.tls-cert != null) cfg.settings.tls-cert
         ++ lib.optional (cfg.settings.tls-key != null) cfg.settings.tls-key;
-        CapabilityBoundingSet = "";
+
         RestrictAddressFamilies = [
           "AF_UNIX"
           "AF_INET"
           "AF_INET6"
         ];
-        RestrictNamespaces = true;
+
+        CapabilityBoundingSet = "";
+        AmbientCapabilities = "";
+        NoNewPrivileges = true;
+
         PrivateDevices = true;
+        PrivateIPC = true;
         PrivateTmp = true;
         PrivateUsers = true;
         ProtectClock = true;
         ProtectControlGroups = true;
         ProtectHome = true;
+        ProtectHostname = true;
         ProtectKernelLogs = true;
         ProtectKernelModules = true;
         ProtectKernelTunables = true;
+        ProtectProc = "invisible";
+        ProcSubset = "pid";
+        ProtectSystem = "strict";
+
         SystemCallArchitectures = "native";
         SystemCallFilter = [
           "@system-service"
           "~@privileged"
+          "~@resources"
+          "~@mount"
         ];
+        SystemCallErrorNumber = "EPERM";
+
+        RestrictNamespaces = true;
         RestrictRealtime = true;
+        RestrictSUIDSGID = true;
         LockPersonality = true;
-        UMask = "0066";
-        ProtectHostname = true;
+        RemoveIPC = true;
       };
     };
   };
