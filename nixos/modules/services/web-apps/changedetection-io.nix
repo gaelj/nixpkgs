@@ -156,8 +156,51 @@ in
               ${cfg.package}/bin/changedetection.py \
                 -h ${cfg.listenAddress} -p ${toString cfg.port} -d ${cfg.datastorePath}
             '';
+
+            NoNewPrivileges = true;
+            CapabilityBoundingSet = "";
+            AmbientCapabilities = "";
+
+            PrivateTmp = true;
+            PrivateDevices = true;
             ProtectHome = true;
-            ProtectSystem = true;
+            ProtectSystem = "strict";
+            ReadWritePaths = [ cfg.datastorePath ];
+            TemporaryFileSystem = "/:ro";
+
+            ProtectKernelTunables = true;
+            ProtectKernelModules = true;
+            ProtectKernelLogs = true;
+            ProtectControlGroups = true;
+            ProtectClock = true;
+            ProtectHostname = true;
+
+            PrivateIPC = true;
+            ProtectProc = "invisible";
+            ProcSubset = "pid";
+
+            SystemCallFilter = [
+              "@system-service"
+              "~@privileged"
+              "~@resources"
+            ];
+            SystemCallArchitectures = "native";
+            SystemCallErrorNumber = "EPERM";
+
+            RestrictAddressFamilies = [
+              "AF_INET"
+              "AF_INET6"
+              "AF_UNIX"
+            ];
+
+            RestrictNamespaces = true;
+            RestrictRealtime = true;
+            RestrictSUIDSGID = true;
+            LockPersonality = true;
+            UMask = "0077";
+
+            LimitNOFILE = 65536;
+            LimitNPROC = 512;
             Restart = "on-failure";
           };
         };
@@ -193,10 +236,11 @@ in
             ports = [
               "127.0.0.1:${toString cfg.chromePort}:4444"
             ];
-            volumes = [
-              "/dev/shm:/dev/shm"
+            volumes = [ ];
+            extraOptions = [
+              "--network=bridge"
+              "--shm-size=512m"
             ];
-            extraOptions = [ "--network=bridge" ];
           };
         })
 
