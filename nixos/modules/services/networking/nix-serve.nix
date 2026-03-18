@@ -96,6 +96,62 @@ in
         LoadCredential = lib.optionalString (
           cfg.secretKeyFile != null
         ) "NIX_SECRET_KEY_FILE:${cfg.secretKeyFile}";
+
+        NoNewPrivileges = true;
+        CapabilityBoundingSet = "";
+        AmbientCapabilities = "";
+
+        PrivateTmp = true;
+        PrivateDevices = true;
+        ProtectHome = true;
+        ProtectSystem = "strict";
+        ReadOnlyPaths = [ "/nix/store" ];
+        BindReadOnlyPaths = [
+          "/nix/var/nix/db"
+          "/nix/var/nix/daemon-socket"
+        ];
+        TemporaryFileSystem = "/:ro";
+        ReadWritePaths = [ ];
+
+        ProtectKernelTunables = true;
+        ProtectKernelModules = true;
+        ProtectKernelLogs = true;
+        ProtectControlGroups = true;
+        ProtectClock = true;
+        ProtectHostname = true;
+
+        PrivateIPC = true;
+        ProtectProc = "invisible";
+        ProcSubset = "pid";
+
+        SystemCallFilter = [
+          "@system-service"
+          "~@privileged"
+          "~@resources"
+        ];
+        SystemCallArchitectures = "native";
+        SystemCallErrorNumber = "EPERM";
+
+        RestrictAddressFamilies = [
+          "AF_INET"
+          "AF_INET6"
+          "AF_UNIX"
+        ];
+        IPAddressDeny = "any";
+        IPAddressAllow = [
+          "localhost"
+          cfg.bindAddress
+        ];
+
+        RestrictNamespaces = true;
+        RestrictRealtime = true;
+        RestrictSUIDSGID = true;
+        LockPersonality = true;
+        MemoryDenyWriteExecute = true;
+        UMask = "0077";
+
+        LimitNOFILE = 65536;
+        LimitNPROC = 512;
       };
     };
 
