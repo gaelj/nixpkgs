@@ -368,6 +368,37 @@ in
         }
         // optionalAttrs (cfg.environmentFile != null) {
           EnvironmentFile = cfg.environmentFile;
+        }
+        // {
+          ProtectSystem = "strict";
+          ProtectHome = true;
+          PrivateTmp = true;
+          PrivateDevices = true;
+          ProtectKernelTunables = true;
+          ProtectKernelModules = true;
+          ProtectKernelLogs = true;
+          ProtectControlGroups = true;
+          ProtectProc = "invisible";
+          ProcSubset = "pid";
+
+          NoNewPrivileges = true;
+          CapabilityBoundingSet = "";
+          AmbientCapabilities = "";
+          RestrictSUIDSGID = true;
+          RestrictNamespaces = true;
+          SystemCallFilter = [ "@system-service" ];
+          SystemCallErrorNumber = "EPERM";
+          SystemCallArchitectures = "native";
+
+          PrivateNetwork = true;
+
+          MemoryDenyWriteExecute = true;
+          RestrictRealtime = true;
+          LockPersonality = true;
+          RemoveIPC = true;
+
+          LimitNOFILE = 256;
+          LimitNPROC = 32;
         };
         script = generateConfig;
       };
@@ -387,6 +418,41 @@ in
         }
         // optionalAttrs (cfg.environmentFile != null) {
           EnvironmentFile = cfg.environmentFile;
+        }
+        // {
+          ProtectSystem = "strict";
+          ProtectHome = true;
+          PrivateTmp = true;
+          PrivateDevices = true;
+          ProtectKernelTunables = true;
+          ProtectKernelModules = true;
+          ProtectKernelLogs = true;
+          ProtectControlGroups = true;
+          ProtectProc = "invisible";
+          ProcSubset = "pid";
+
+          NoNewPrivileges = true;
+          CapabilityBoundingSet = "";
+          AmbientCapabilities = "";
+          RestrictSUIDSGID = true;
+          RestrictNamespaces = true;
+          SystemCallFilter = [ "@system-service" ];
+          SystemCallErrorNumber = "EPERM";
+          SystemCallArchitectures = "native";
+
+          RestrictAddressFamilies = [
+            "AF_INET"
+            "AF_INET6"
+            "AF_UNIX"
+          ];
+
+          MemoryDenyWriteExecute = false;
+          RestrictRealtime = true;
+          LockPersonality = true;
+          RemoveIPC = true;
+
+          LimitNOFILE = 4096;
+          LimitNPROC = 128;
         };
         environment = {
           SEARXNG_SETTINGS_PATH = cfg.settingsFile;
@@ -401,9 +467,44 @@ in
           cfg.settingsFile
         ]
         ++ lib.optional (cfg.environmentFile != null) cfg.environmentFile;
+        serviceConfig = {
+          ProtectSystem = "strict";
+          ProtectHome = true;
+          PrivateTmp = true;
+          PrivateDevices = true;
+          ProtectKernelTunables = true;
+          ProtectKernelModules = true;
+          ProtectKernelLogs = true;
+          ProtectControlGroups = true;
+          ProtectProc = "invisible";
+          ProcSubset = "pid";
+
+          NoNewPrivileges = true;
+          CapabilityBoundingSet = [
+            "CAP_SETUID"
+            "CAP_SETGID"
+          ];
+          AmbientCapabilities = "";
+          RestrictSUIDSGID = true;
+          RestrictNamespaces = true;
+          SystemCallFilter = [ "@system-service" ];
+          SystemCallErrorNumber = "EPERM";
+          SystemCallArchitectures = "native";
+          RestrictAddressFamilies = [
+            "AF_INET"
+            "AF_INET6"
+            "AF_UNIX"
+          ];
+          MemoryDenyWriteExecute = false;
+          RestrictRealtime = true;
+          LockPersonality = true;
+          RemoveIPC = true;
+
+          LimitNOFILE = 4096;
+          LimitNPROC = 256;
+        };
       };
     };
-
     users = {
       groups.searx = { };
       users.searx = {
