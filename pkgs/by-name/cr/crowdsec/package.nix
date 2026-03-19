@@ -56,6 +56,14 @@ buildGoModule (finalAttrs: {
     mkdir -p $out/share/crowdsec
     cp -r ./config $out/share/crowdsec/
 
+    install -D $out/bin/notification-dummy -t $out/libexec/crowdsec/plugins/
+    install -D $out/bin/notification-email -t $out/libexec/crowdsec/plugins/
+    install -D $out/bin/notification-file -t $out/libexec/crowdsec/plugins/
+    install -D $out/bin/notification-http -t $out/libexec/crowdsec/plugins/
+    install -D $out/bin/notification-sentinel -t $out/libexec/crowdsec/plugins/
+    install -D $out/bin/notification-slack -t $out/libexec/crowdsec/plugins/
+    install -D $out/bin/notification-splunk -t $out/libexec/crowdsec/plugins/
+
     installShellCompletion --cmd cscli \
       --bash <($out/bin/cscli completion bash) \
       --fish <($out/bin/cscli completion fish) \
