@@ -108,6 +108,41 @@ in
         EnvironmentFile = lib.mkIf (cfg.credentialsFile != null) cfg.credentialsFile;
         StateDirectory = "mealie";
         StandardOutput = "journal";
+
+        ProtectSystem = "strict";
+        ProtectHome = true;
+        PrivateTmp = true;
+        PrivateDevices = true;
+        ProtectKernelTunables = true;
+        ProtectKernelModules = true;
+        ProtectKernelLogs = true;
+        ProtectControlGroups = true;
+        ProtectProc = "invisible";
+        ProcSubset = "pid";
+        BindReadOnlyPaths = [ pkgs.nltk-data.averaged-perceptron-tagger-eng ];
+
+        NoNewPrivileges = true;
+        CapabilityBoundingSet = "";
+        AmbientCapabilities = "";
+        RestrictSUIDSGID = true;
+        RestrictNamespaces = true;
+        SystemCallFilter = [ "@system-service" ];
+        SystemCallErrorNumber = "EPERM";
+        SystemCallArchitectures = "native";
+
+        RestrictAddressFamilies = [
+          "AF_INET"
+          "AF_INET6"
+          "AF_UNIX"
+        ];
+
+        MemoryDenyWriteExecute = true;
+        RestrictRealtime = true;
+        LockPersonality = true;
+        RemoveIPC = true;
+
+        LimitNOFILE = 4096;
+        LimitNPROC = 256;
       };
     };
 
