@@ -5,7 +5,7 @@
   nodejs,
   fetchNpmDeps,
   buildPackages,
-  php84,
+  php85,
   nixosTests,
   nix-update-script,
   dataDir ? "/var/lib/firefly-iii",
@@ -22,17 +22,17 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     hash = "sha256-GpF20fgVcBtHW4bzoJd3lMa7vZjZuZF1xuft4v3DC+U=";
   };
 
-  buildInputs = [ php84 ];
+  buildInputs = [ php85 ];
 
   nativeBuildInputs = [
     nodejs
     nodejs.python
     buildPackages.npmHooks.npmConfigHook
-    php84.packages.composer
-    php84.composerHooks2.composerInstallHook
+    php85.packages.composer
+    php85.composerHooks2.composerInstallHook
   ];
 
-  composerVendor = php84.mkComposerVendor {
+  composerVendor = php85.mkComposerVendor {
     inherit (finalAttrs) pname src version;
     composerStrictValidation = true;
     strictDeps = true;
@@ -51,7 +51,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
   '';
 
   passthru = {
-    phpPackage = php84;
+    phpPackage = php85;
     tests = nixosTests.firefly-iii;
     updateScript = nix-update-script {
       extraArgs = [
