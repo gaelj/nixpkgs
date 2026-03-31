@@ -8,11 +8,11 @@ let
   cfg = config.services.crowdsec;
   yaml = pkgs.formats.yaml { };
 
-  configuredCscli = pkgs.writeShellScriptBin "cscli" ''
-    ${lib.getExe' cfg.package "cscli"} -c="${cfg.settings.config.config_paths.config_dir}/config.yaml" -c="${cfg.settings.config.config_paths.config_dir}/config.yaml.local" "$@"
-  '';
-
   config_paths = cfg.settings.config.config_paths;
+
+  # Reason:
+  # https://github.com/NixOS/nixpkgs/pull/446307#issuecomment-3955091336
+  secret_path = lib.types.either lib.types.path lib.types.nonEmptyStr;
 in
 {
   imports = [
@@ -63,13 +63,6 @@ in
 
     package = lib.mkPackageOption pkgs "crowdsec" { };
 
-    configuredCscli = lib.mkOption {
-      type = lib.types.package;
-      description = "The cscli package, using config.yaml{,.local}";
-      internal = true;
-      default = configuredCscli;
-    };
-
     autoUpdateService = lib.mkEnableOption "if `true` `cscli hub update` will be executed daily. See `https://docs.crowdsec.net/docs/cscli/cscli_hub_update/` for more information";
 
     openFirewall = lib.mkOption {
@@ -100,6 +93,34 @@ in
       '';
       default = config.networking.hostName;
       defaultText = lib.literalExpression "config.networking.hostName";
+    };
+
+    readOnlyPaths = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      description = ''
+        Additional read-only paths of the host which the crowdsec service can access.
+
+        Mostly relevant if you'd like to let `crowdsec` read additional log files.
+      '';
+      default = [ ];
+      example = [
+        "/var/log/vaultwarden"
+        "/var/log/nginx"
+      ];
+    };
+
+    extraGroups = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      description = ''
+        List of groups which the internal (dynamic-) user should be assigned to.
+
+        Relevant if only some groups are able to read some logs.
+      '';
+      default = [ "systemd-journal" ];
+      example = [
+        "nginx"
+        "log"
+      ];
     };
 
     hub = lib.mkOption {
@@ -189,8 +210,19 @@ in
 
                   data_dir = lib.mkOption {
                     type = lib.types.path;
-                    default = "/var/lib/crowdsec";
+                    default = "/var/lib/crowdsec/data";
                     description = "This is where crowdsec is going to store data, such as files downloaded by scenarios, geolocalisation database, metabase configuration database, or even SQLite database.";
+                  };
+
+                  simulation_path = lib.mkOption {
+                    type = lib.types.path;
+                    default = yaml.generate "simulation.yaml" cfg.settings.simulation;
+                    defaultText = "Path to the nixos generated file.";
+                    description = ''
+                      NOTE: This file is generated from `config.services.crowdsec.settings.simulation`.
+                      If you change this path then `config.services.crowdsec.settings.simulation` will be ignored so you have to
+                      write the content this file on your own.
+                    '';
                   };
 
                   hub_dir = lib.mkOption {
@@ -207,13 +239,6 @@ in
                     description = "Path to the `.index.json` file downloaded by `cscli` to know the list of available configurations.";
                   };
 
-                  plugin_dir = lib.mkOption {
-                    type = lib.types.path;
-                    default = "${config_paths.data_dir}/plugins";
-                    defaultText = lib.literalExpression "\${config.services.crowdsec.settings.config.config_paths.data_dir}/plugins";
-                    description = "Path to directory where the plugin binaries/scripts are located.";
-                  };
-
                   notification_dir = lib.mkOption {
                     type = lib.types.path;
                     default = "${config_paths.config_dir}/notifications";
@@ -221,20 +246,16 @@ in
                     description = "Path to directory where configuration files for notification plugins are kept.";
                   };
 
-                  simulation_path = lib.mkOption {
+                  plugin_dir = lib.mkOption {
                     type = lib.types.path;
-                    default = yaml.generate "simulation.yaml" cfg.settings.simulation;
-                    defaultText = "Path to the nixos generated file.";
-                    description = ''
-                      NOTE: This file is generated from `config.services.crowdsec.settings.simulation`.
-                      If you change this path then `config.services.crowdsec.settings.simulation` will be ignored so you have to
-                      write the content this file on your own.
-                    '';
+                    default = "${config_paths.config_dir}/plugins";
+                    defaultText = lib.literalExpression "\${config.services.crowdsec.settings.config.config_paths.data_dir}/plugins";
+                    description = "Path to directory where the plugin binaries/scripts are located.";
                   };
 
                   pattern_dir = lib.mkOption {
                     type = lib.types.path;
-                    default = pkgs.buildPackages.symlinkJoin {
+                    default = pkgs.symlinkJoin {
                       name = "crowdsec-patterns";
                       paths = [
                         cfg.settings.patterns
@@ -246,6 +267,56 @@ in
                       from this directory: <https://github.com/crowdsecurity/crowdsec/tree/master/config/patterns>.
                     '';
                     description = "Path to directory where pattern files are located.";
+                  };
+                };
+
+                crowdsec_service = {
+                  acquisition_dir = lib.mkOption {
+                    type = lib.types.path;
+                    default = "${config_paths.config_dir}/acquis.d";
+                    defaultText = lib.literalExpression "\${config.services.crowdsec.settings.config.config_paths.config_dir}/acquis.d";
+                    description = ''
+                      Path to a directory where each yaml is considered as a acquisition configuration file containing logs that needs to be read.
+                      If both acquisition_dir and acquisition_path are specified, the entries are merged altogether.
+                    '';
+                  };
+                };
+
+                cscli = {
+                  hub_branch = lib.mkOption {
+                    type = lib.types.nonEmptyStr;
+                    default = "master";
+                    description = ''
+                      The git branch on which cscli is going to fetch configurations.
+
+                      See <https://docs.crowdsec.net/docs/configuration/crowdsec_configuration/#hub_branch> for more information.
+                    '';
+                  };
+                  prometheus_uri = lib.mkOption {
+                    type = lib.types.str;
+                    default = "http://${cfg.settings.config.prometheus.listen_addr}:${toString cfg.settings.config.prometheus.listen_port}";
+                    defaultText = "The prometheus address and port set in `services.crowdsec.settings.config.prometheus`.";
+                    description = ''
+                      (>1.0.7) An uri (without the trailing /metrics) that will be used by cscli metrics command, ie. http://127.0.0.1:6060/
+
+                      See <https://docs.crowdsec.net/docs/configuration/crowdsec_configuration/#prometheus_uri> for more information.
+                    '';
+                  };
+                };
+
+                plugin_config = {
+                  user = lib.mkOption {
+                    type = lib.types.str;
+                    description = "The user to run crowdsec plugins as";
+                    default = cfg.user;
+                    defaultText = lib.literalExpression "\${config.services.crowdsec.user}";
+                  };
+
+                  group = lib.mkOption {
+                    type = lib.types.str;
+                    description = "The group to run crowdsec plugins as";
+                    default = cfg.group;
+                    defaultText = lib.literalExpression "\${config.services.crowdsec.group}";
                   };
                 };
 
@@ -263,35 +334,9 @@ in
                   };
                 };
 
-                crowdsec_service = {
-                  acquisition_dir = lib.mkOption {
-                    type = lib.types.path;
-                    default = "${config_paths.config_dir}/acquis.d";
-                    defaultText = lib.literalExpression "\${config.services.crowdsec.settings.config.config_paths.config_dir}/acquis.d";
-                    description = ''
-                      Path to a directory where each yaml is considered as a acquisition configuration file containing logs that needs to be read.
-                      If both acquisition_dir and acquisition_path are specified, the entries are merged altogether.
-                    '';
-                  };
-                };
-
-                plugin_config = {
-                  user = lib.mkOption {
-                    type = lib.types.str;
-                    description = "The user to run crowdsec plugins as";
-                    default = "crowdsec";
-                  };
-
-                  group = lib.mkOption {
-                    type = lib.types.str;
-                    description = "The group to run crowdsec plugins as";
-                    default = "crowdsec";
-                  };
-                };
-
                 api = {
                   client.credentials_path = lib.mkOption {
-                    type = lib.types.path;
+                    type = secret_path;
                     default = "${config_paths.data_dir}/local_api_credentials.yaml";
                     defaultText = lib.literalExpression "\${config.services.crowdsec.settings.config.config_paths.data_dir}/local_api_credentials.yaml";
                     description = "Path to the credential files (contains API url + login/password).";
@@ -310,6 +355,17 @@ in
                       description = "Address and port listen configuration, the form `host:port`.";
                     };
 
+                    profiles_path = lib.mkOption {
+                      type = lib.types.path;
+                      default = pkgs.writeText "profiles.yaml" ''
+                        ---
+                        ${lib.strings.concatMapStringsSep "\n---\n" (lib.generators.toYAML { }) cfg.settings.profiles}
+                        ---
+                      '';
+                      defaultText = lib.literalExpression "\${config.services.crowdsec.settings.config.config_paths.config_dir}/profiles.yaml";
+                      description = "Path to the profiles file.";
+                    };
+
                     console_path = lib.mkOption {
                       type = lib.types.path;
                       default = "${config_paths.data_dir}/console.yaml";
@@ -317,15 +373,8 @@ in
                       description = "The path to the console configuration.";
                     };
 
-                    profiles_path = lib.mkOption {
-                      type = lib.types.path;
-                      default = "${config_paths.config_dir}/profiles.yaml";
-                      defaultText = lib.literalExpression "\${config.services.crowdsec.settings.config.config_paths.config_dir}/profiles.yaml";
-                      description = "Path to the profiles file.";
-                    };
-
                     online_client.credentials_path = lib.mkOption {
-                      type = lib.types.nullOr lib.types.path;
+                      type = lib.types.nullOr secret_path;
                       default = null;
                       example = "\${config_paths.data_dir}/online_api_credentials.yaml";
                       description = ''
@@ -337,21 +386,17 @@ in
                   };
                 };
 
-                cscli.hub_branch = lib.mkOption {
-                  type = lib.types.nonEmptyStr;
-                  default = "master";
-                  description = ''
-                    The git branch on which cscli is going to fetch configurations.
-
-                    See <https://docs.crowdsec.net/docs/configuration/crowdsec_configuration/#hub_branch> for more information.
-                  '';
-                };
-
                 prometheus = {
                   enabled = lib.mkOption {
                     type = lib.types.bool;
                     default = true;
                     description = "Enable or disable the CrowdSec prometheus exporter.";
+                  };
+
+                  listen_addr = lib.mkOption {
+                    type = lib.types.str;
+                    default = "127.0.0.1";
+                    description = "Prometheus listen address.";
                   };
 
                   listen_port = lib.mkOption {
@@ -642,42 +687,12 @@ in
 
   config =
     let
-      installDir = d: ''install -d -o ${cfg.user} -g ${cfg.group} -m 750 "${d}"'';
-
-      cleanConfigDirs = ''
-        if [ -d ${config_paths.config_dir}/patterns ]; then
-          rm -rf ${config_paths.config_dir}/patterns
-        fi
-      '';
-
-      createConfigDirs = lib.concatMapStringsSep "\n" installDir [
-        config_paths.config_dir
-        cfg.settings.config.crowdsec_service.acquisition_dir
-        config_paths.notification_dir
-        "${config_paths.config_dir}/appsec-configs"
-        "${config_paths.config_dir}/appsec-rules"
-        "${config_paths.config_dir}/collections"
-        "${config_paths.config_dir}/console"
-        "${config_paths.config_dir}/contexts"
-        "${config_paths.config_dir}/hub"
-        "${config_paths.config_dir}/parsers"
-        "${config_paths.config_dir}/parsers/s00-raw"
-        "${config_paths.config_dir}/parsers/s01-parse"
-        "${config_paths.config_dir}/parsers/s02-enrich"
-        "${config_paths.config_dir}/postoverflows"
-        "${config_paths.config_dir}/postoverflows/s00-enrich"
-        "${config_paths.config_dir}/postoverflows/s01-whitelist"
-        "${config_paths.config_dir}/scenarios"
-      ];
-
-      setupConfigDirs = ''
-        ${cleanConfigDirs}
-        ${createConfigDirs}
-      '';
-
       setupScript = pkgs.writeShellApplication {
         name = "crowdsec-setup";
-        runtimeInputs = [ configuredCscli ];
+        runtimeInputs = [
+          cfg.package
+          pkgs.coreutils
+        ];
         text =
           let
             argString = arg: lib.concatMapStringsSep " " lib.escapeShellArg arg;
@@ -688,56 +703,33 @@ in
               ) "cscli ${lib.toLower x} install ${argString cfg.hub.${x}}";
 
             installNotificationPlugin = name: ''
-              install -o ${cfg.user} -g ${cfg.group} -m 0750 -D ${cfg.package}/libexec/crowdsec/plugins/${name} ${cfg.settings.config.config_paths.data_dir}/plugins/${name}
+              install -m 551 -D ${cfg.package}/libexec/crowdsec/plugins/notification-${name} ${cfg.settings.config.config_paths.plugin_dir}/notification-${name}
             '';
-
-            maybeTouchFile =
-              p:
-              lib.optionalString (p != null) ''
-                if [ ! -s ${p} ]; then
-                  touch "${p}"
-                fi
-              '';
-
-            maybeInstallConfigFile =
-              p: o:
-              lib.optionalString (p != null) ''
-                if [ ! -f ${config_paths.config_dir}/${o} ]; then
-                  cp ${cfg.package}/share/crowdsec/config/${p} ${config_paths.config_dir}/${o}
-                fi
-              '';
-
-            maybeInstallDataFile =
-              p: o:
-              lib.optionalString (p != null) ''
-                if [ ! -f ${cfg.settings.config.config_paths.data_dir}/${o} ]; then
-                  cp ${cfg.package}/share/crowdsec/config/${p} ${cfg.settings.config.config_paths.data_dir}/${o}
-                fi
-              '';
-
-            overwriteInstallConfigDir =
-              p:
-              lib.optionalString (p != null) ''
-                cp -a ${cfg.package}/share/crowdsec/config/${p} ${config_paths.config_dir}
-              '';
           in
           ''
-            ${maybeTouchFile cfg.settings.config.api.client.credentials_path}
-            ${maybeTouchFile cfg.settings.config.api.server.online_client.credentials_path}
+            echo "Creating directories..."
+            mkdir -p ${config_paths.config_dir}/console
+            mkdir -p ${config_paths.data_dir}
+            mkdir -p ${cfg.settings.config.crowdsec_service.acquisition_dir}
+            mkdir -p ${config_paths.hub_dir}
 
-            ${installDir cfg.settings.config.config_paths.hub_dir}
-            ${installDir cfg.settings.config.config_paths.plugin_dir}
+            # to be able to create notifications
+            echo "Installing notification plugins..."
+            ${installNotificationPlugin "dummy"}
+            ${installNotificationPlugin "email"}
+            ${installNotificationPlugin "file"}
+            ${installNotificationPlugin "http"}
+            ${installNotificationPlugin "sentinel"}
+            ${installNotificationPlugin "slack"}
+            ${installNotificationPlugin "splunk"}
 
-            # needed by `cscli setup`
-            ${installDir "${cfg.settings.config.config_paths.hub_dir}/.cache"}
-            ${installDir "${cfg.settings.config.config_paths.data_dir}/data"}
-            ${maybeInstallDataFile "detect.yaml" "data/detect.yaml"}
+            echo "Creating files..."
+            install ${cfg.package}/share/crowdsec/config/console.yaml ${cfg.settings.config.api.server.console_path}
+            install ${cfg.package}/share/crowdsec/config/detect.yaml ${cfg.settings.config.config_paths.data_dir}
 
-            ${maybeInstallConfigFile "simulation.yaml" "simulation.yaml"}
-            ${maybeInstallConfigFile "context.yaml" "console/context.yaml"}
-            ${maybeInstallConfigFile "console.yaml" "console.yaml"}
-            ${overwriteInstallConfigDir "patterns"}
-
+            # NOTE: THE CODE BELOW NEEDS TO STAY BELOW
+            #       Don't move code logic below this comment to the top of this comment because it expects
+            #
             echo "Updating hub..."
 
             cscli hub update
@@ -751,28 +743,17 @@ in
             ${maybeInstall "appsec-configs"}
             ${maybeInstall "appsec-rules"}
 
-            echo "Installing notification plugins..."
-
-            # to be able to create notifications
-            ${installNotificationPlugin "notification-dummy"}
-            ${installNotificationPlugin "notification-email"}
-            ${installNotificationPlugin "notification-file"}
-            ${installNotificationPlugin "notification-http"}
-            ${installNotificationPlugin "notification-sentinel"}
-            ${installNotificationPlugin "notification-slack"}
-            ${installNotificationPlugin "notification-splunk"}
+            ${lib.optionalString (cfg.settings.config.api.server.online_client.credentials_path != null) ''
+              if [ ! -s "${cfg.settings.config.api.server.online_client.credentials_path}" ]; then
+                echo "No local online API credentials created. Registering..."
+                cscli capi register
+              fi
+            ''}
 
             ${lib.optionalString cfg.settings.config.api.server.enable ''
               if [ ! -s ${cfg.settings.config.api.client.credentials_path} ]; then
                 echo "No local API credentials currently created. Generating local API credentials..."
                 cscli machines add "${cfg.name}" --auto --file ${cfg.settings.config.api.client.credentials_path}
-              fi
-            ''}
-
-            ${lib.optionalString (cfg.settings.config.api.server.online_client.credentials_path != null) ''
-              if [ ! -s "${cfg.settings.config.api.server.online_client.credentials_path}" ]; then
-                echo "No local online API credentials created. Registering..."
-                cscli capi register
               fi
             ''}
 
@@ -782,16 +763,8 @@ in
                 cscli console enroll "$(<"$CREDENTIALS_DIRECTORY/enrollKeyFile")" --name ${cfg.name}
               fi
             ''}
-
             echo "Completed crowdsec setup"
           '';
-      };
-
-      # for files and dirs belonging to crowdsec
-      entry_permissions = {
-        user = cfg.user;
-        group = cfg.group;
-        mode = "0750";
       };
     in
     lib.mkIf (cfg.enable) {
@@ -806,6 +779,12 @@ in
         ]
         ++ lib.optionals (builtins.hasAttr "daemonize" cfg.settings.config.common) [
           "[`services.crowdsec.settings.config.common.daemonize`]: It's deprecated. See <https://doc.crowdsec.net/u/bouncers/firewall/#daemonize>"
+        ]
+        ++ lib.optionals (cfg.settings.config.config_paths.config_dir != "/etc/crowdsec") [
+          "`services.crowdsec` assumes that `services.crowdsec.settings.config_paths.config_dir = '/etc/crowdsec'`. Changing that path will potentially require some manual adjustings to make crowdsec work."
+        ]
+        ++ lib.optionals (cfg.settings.config.config_paths.data_dir != "/var/lib/crowdsec/data") [
+          "`services.crowdsec` assumes that `services.crowdsec.settings.config_paths.data_dir = '/var/lib/crowdsec/data'`. Changing that path will potentially require some manual adjustings to make crowdsec work."
         ];
 
       assertions = [
@@ -836,16 +815,13 @@ in
         }
       ];
 
-      # From our testing, `environment.etc` isn't fast enough so that the permissions aren't correctly set if the service starts.
-      # As a workaround we are creating the required `etc` directories here
-      system.activationScripts.crowdsec = setupConfigDirs;
-
       environment = {
         systemPackages =
           let
             cscliWrapper = pkgs.symlinkJoin {
               name = "cscli";
               paths = [
+                # `--working-directory=/var/lib/crowdsec/data/hub`: Because `cscli hubtest` needs to be in the `hub` directory.
                 (pkgs.writeShellScriptBin "cscli" ''
                   exec systemd-run \
                     --quiet \
@@ -853,17 +829,18 @@ in
                     --wait \
                     --collect \
                     --pipe \
+                    --service-type=exec \
+                    --working-directory=/var/lib/crowdsec/data/hub \
+                    --property=ExecPaths="${cfg.settings.config.config_paths.plugin_dir}" \
                     --property=User=${cfg.user} \
                     --property=Group=${cfg.group} \
                     --property=DynamicUser=true \
-                    --property=StateDirectory="crowdsec crowdsec/hub" \
+                    --property=StateDirectory="crowdsec" \
                     --property=StateDirectoryMode="0750" \
-                    --property=ConfigurationDirectory="crowdsec crowdsec/acquis.d" \
+                    --property=ConfigurationDirectory="crowdsec" \
                     --property=ConfigurationDirectoryMode="0750" \
-                    --property=BindPaths="${cfg.settings.config.config_paths.hub_dir}/.cache:/.cache" \
-                    --property=ExecPaths="${cfg.settings.config.config_paths.plugin_dir}" \
                     -- \
-                    ${lib.getExe configuredCscli} "$@"
+                    ${lib.getExe' cfg.package "cscli"} "$@"
                 '')
                 (pkgs.runCommand "cscli-completions" { } ''
                   mkdir -p $out/share
@@ -876,11 +853,19 @@ in
           in
           [ cscliWrapper ];
 
+        # NOTE: Is it worth it to create a script instead which removes and (re-)creates those files instead of using `environment.etc`?
+        #       This would fix the permission issue and we wouldn't need the `chmod` and `chown` "hack" in the setup-service.
         etc =
           let
             config_dir = "crowdsec";
 
+            entry_permissions = {
+              user = cfg.user;
+              group = cfg.group;
+            };
+
             start = lib.mapAttrs (name: value: lib.mergeAttrs value entry_permissions) {
+              # for some reason, `-c config` gets ignored for some commands, hence we really need to create the config files
               "${config_dir}/config.yaml".source = "${cfg.package}/share/crowdsec/config/config.yaml";
               "${config_dir}/config.yaml.local".source = yaml.generate "config.yaml.local" cfg.settings.config;
               "${config_dir}/acquis.d/00-nixos-generated.yaml".source = pkgs.writeText "aquisitions.yaml" ''
@@ -888,17 +873,12 @@ in
                 ${lib.strings.concatMapStringsSep "\n---\n" (lib.generators.toYAML { }) cfg.settings.acquisitions}
                 ---
               '';
-              "${config_dir}/profiles.yaml".source = pkgs.writeText "profiles.yaml" ''
-                ---
-                ${lib.strings.concatMapStringsSep "\n---\n" (lib.generators.toYAML { }) cfg.settings.profiles}
-                ---
-              '';
             };
 
             attrListToEntries =
-              attrList: target_dir: generated_file_name:
+              attrList: target_dir:
               let
-                file_paths = map (yaml.generate generated_file_name) attrList;
+                file_paths = map (yaml.generate "crowdsec-setting.yaml") attrList;
 
                 # Example usage:
                 #   enumerated_entries 0 ["path1" "path2"]
@@ -913,7 +893,7 @@ in
                     [ ]
                   else
                     let
-                      dst_path = "${target_dir}/${toString idx}-nixos-generated.yaml";
+                      dst_path = "${config_dir}/${target_dir}/${toString idx}-nixos-generated.yaml";
 
                       src_path = builtins.head paths;
                       rest = builtins.tail paths;
@@ -932,22 +912,13 @@ in
 
           in
           builtins.foldl' lib.mergeAttrs start [
-            (attrListToEntries cfg.settings.scenarios "${config_dir}/scenarios" "scenario.yaml")
-            (attrListToEntries cfg.settings.parsers.s00Raw "${config_dir}/parsers/s00-raw"
-              "parsers-s00-raw.yaml"
-            )
-            (attrListToEntries cfg.settings.parsers.s01Parse "${config_dir}/parsers/s01-parse"
-              "parsers-s01-parse.yaml"
-            )
-            (attrListToEntries cfg.settings.parsers.s02Enrich "${config_dir}/parsers/s02-enrich"
-              "parsers-s02-enrich.yaml"
-            )
-            (attrListToEntries cfg.settings.postOverflows.s01Whitelist
-              "${config_dir}/postoverflows/s01-whitelist"
-              "postoverflows-s01-whitelist.yaml"
-            )
-            (attrListToEntries cfg.settings.contexts "${config_dir}/contexts" "context.yaml")
-            (attrListToEntries cfg.settings.notifications "${config_dir}/notifications" "notification.yaml")
+            (attrListToEntries cfg.settings.scenarios "scenarios")
+            (attrListToEntries cfg.settings.parsers.s00Raw "parsers/s00-raw")
+            (attrListToEntries cfg.settings.parsers.s01Parse "parsers/s01-parse")
+            (attrListToEntries cfg.settings.parsers.s02Enrich "parsers/s02-enrich")
+            (attrListToEntries cfg.settings.postOverflows.s01Whitelist "postoverflows/s01-whitelist")
+            (attrListToEntries cfg.settings.contexts "contexts")
+            (attrListToEntries cfg.settings.notifications "notifications")
           ];
       };
 
@@ -989,19 +960,16 @@ in
                 "AF_INET6"
               ];
 
-              StateDirectory = "crowdsec crowdsec/hub";
+              StateDirectory = "crowdsec";
               StateDirectoryMode = "0750";
-              ConfigurationDirectory = "crowdsec crowdsec/acquis.d";
+              ConfigurationDirectory = "crowdsec";
               ConfigurationDirectoryMode = "0750";
             } attrs;
         in
         {
-          packages = [ cfg.package ];
-
           timers.crowdsec-update-hub = lib.mkIf (cfg.autoUpdateService) {
             description = "Update the crowdsec hub index";
             wantedBy = [ "timers.target" ];
-            after = [ ];
             timerConfig = {
               OnCalendar = "daily";
               RandomizedDelaySec = 300;
@@ -1013,12 +981,15 @@ in
           services = {
             crowdsec-update-hub = lib.mkIf (cfg.autoUpdateService) {
               description = "Update the crowdsec hub index";
+              # for dns resolving
+              wants = [ "network-online.target" ];
+              after = [ "network-online.target" ];
 
               serviceConfig = createServiceConfig {
                 Type = "oneshot";
                 ExecStart = [
-                  "${lib.getExe configuredCscli} --warning hub update"
-                  "${lib.getExe configuredCscli} --warning hub upgrade"
+                  "${lib.getExe' cfg.package "cscli"} --warning hub update"
+                  "${lib.getExe' cfg.package "cscli"} --warning hub upgrade"
                 ];
                 ExecStartPost = "+systemctl reload crowdsec.service";
               };
@@ -1029,8 +1000,18 @@ in
               wantedBy = [ "multi-user.target" ];
               wants = [ "network-online.target" ];
               before = [ "crowdsec.service" ];
+              # for dns resolving
+              after = [ "network-online.target" ];
               serviceConfig = createServiceConfig {
                 Type = "oneshot";
+                ExecStartPre = [
+                  # `/etc/crodwsec` MUST be writeable for crowdsec because `cscli` writes and creates new files in its `config_dir`.
+                  # `environment.etc` and `systemd.tmpfiles` are not able to give the directories the correct owner and group
+                  # due to `DynamicUser=true` so `environment.etc` and `systemd.tmpfiles` don't know the user and group `crowdsec`.
+                  # That's why we are doing it ourself.
+                  "+${lib.getExe' pkgs.coreutils "chown"} ${cfg.user}:${cfg.group} -R ${config_paths.config_dir}"
+                  "+${lib.getExe' pkgs.coreutils "chmod"} 750 -R ${config_paths.config_dir}"
+                ];
                 ExecStart = lib.getExe setupScript;
               };
             };
@@ -1044,14 +1025,9 @@ in
                 "crowdsec-setup.service"
               ];
 
-              environment = {
-                LC_ALL = "C";
-                LANG = "C";
-              };
-
               serviceConfig =
                 let
-                  configuredCrowdsec = "${lib.getExe' cfg.package "crowdsec"} -c ${cfg.settings.config.config_paths.config_dir}/config.yaml";
+                  crowdsec = "${lib.getExe' cfg.package "crowdsec"}";
                 in
                 createServiceConfig {
                   Type = "notify";
@@ -1059,31 +1035,23 @@ in
 
                   ProtectKernelLogs = false;
 
-                  ExecStartPre = "${configuredCrowdsec} -t -error";
-                  ExecStart = "${configuredCrowdsec} -info";
+                  ReadOnlyPaths = cfg.readOnlyPaths;
+                  SupplementaryGroups = cfg.extraGroups;
+
+                  ExecStartPre = "${crowdsec} -t -error";
+                  ExecStart = "${crowdsec} -info";
                   ExecReload = [
-                    "${configuredCrowdsec} -t -error"
+                    "${crowdsec} -t -error"
                     "${lib.getExe' pkgs.coreutils "kill"} -HUP $MAINPID"
                   ];
 
                   ExecPaths = [ cfg.settings.config.config_paths.plugin_dir ];
-                  BindPaths = "${cfg.settings.config.config_paths.hub_dir}/.cache:/.cache";
 
                   Restart = "always";
                 };
             };
           };
         };
-
-      users.users.${cfg.user} = {
-        name = cfg.user;
-        description = lib.mkDefault "CrowdSec service user";
-        isSystemUser = true;
-        group = cfg.group;
-        extraGroups = [ "systemd-journal" ];
-      };
-
-      users.groups.${cfg.group} = lib.mapAttrs (name: lib.mkOptionDefault) { };
 
       networking.firewall.allowedTCPPorts =
         let

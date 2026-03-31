@@ -155,6 +155,7 @@ in
       update_frequency = lib.mkDefault "10s";
       log_mode = lib.mkDefault "stdout";
       log_level = lib.mkDefault "info";
+      log_dir = lib.mkDefault "/var/log/crowdsec-firewall-bouncer";
 
       # iptables-specific config
       blacklists_ipv4 = lib.mkDefault "crowdsec-blacklists";
@@ -230,14 +231,13 @@ in
           wantedBy = [ "multi-user.target" ];
           after = [ "crowdsec.service" ];
           wants = after;
-          path = [ config.services.crowdsec.configuredCscli ];
+          path = [ config.services.crowdsec.package ];
           script = ''
             # Ensure the directory exists
             mkdir -p "$(dirname ${apiKeyFile})" || true
 
             echo "Checking bouncer registration..."
             if cscli bouncers list --output json | ${lib.getExe pkgs.jq} -e -- ${lib.escapeShellArg "any(.[]; .name == \"${cfg.registerBouncer.bouncerName}\")"} >/dev/null; then
-
               echo "Bouncer already registered. Verify the API key is still present"
               if [ ! -f ${apiKeyFile} ]; then
                 echo "Bouncer registered but API key is not present"
@@ -258,7 +258,7 @@ in
               echo "Failed to register the bouncer"
               cat ${apiKeyFile} || true  # Show error message
               rm -f ${apiKeyFile}
-              exit 1
+                exit 1
             fi
 
             chmod 0440 ${apiKeyFile} || true
@@ -292,11 +292,7 @@ in
             RestrictRealtime = true;
             SystemCallArchitectures = "native";
 
-            RestrictAddressFamilies = [
-              "AF_UNIX"
-              "AF_INET"
-              "AF_INET6"
-            ];
+            RestrictAddressFamilies = "none";
             CapabilityBoundingSet = [ "" ];
             SystemCallFilter = [
               "@system-service"
@@ -304,7 +300,7 @@ in
               "~@resources"
             ];
             UMask = "0077";
-            ExecStartPost = "+systemctl try-restart crowdsec-firewall-bouncer.service";
+            ExecStartPost = "+systemctl --no-block try-restart crowdsec-firewall-bouncer.service";
           };
         };
 
@@ -323,25 +319,21 @@ in
               # Replace the api_key placeholder with the secret
               ${lib.getExe pkgs.replace-secret} '@API_KEY_FILE@' "$CREDENTIALS_DIRECTORY/API_KEY_FILE" ${final-config-file}
             '';
-
-            isIptables = (cfg.settings.mode == "iptables") || (cfg.settings.mode == "ipset");
-            isNftables = cfg.settings.mode == "nftables";
           in
           rec {
             description = "CrowdSec Firewall Bouncer";
             wantedBy = [ "multi-user.target" ];
-            partOf =
-              (lib.optional isNftables "nftables.service") ++ (lib.optional isIptables "firewall.service");
-            after =
-              (lib.optional isNftables "nftables.service")
-              ++ (lib.optional isIptables "firewall.service")
-              ++ (lib.optional config.services.crowdsec.enable "crowdsec.service");
+            after = [
+              "network.target"
+            ]
+            ++ (lib.optional config.services.crowdsec.enable "crowdsec.service")
+            ++ (lib.optional cfg.registerBouncer.enable "crowdsec-firewall-bouncer-register.service");
             wants = after;
             requires = lib.optional cfg.registerBouncer.enable "crowdsec-firewall-bouncer-register.service";
 
             # When using iptables/ipset modes, the bouncer calls external binaries so they must be added to the path.
             # For nftables mode, it does not depend on external binaries.
-            path = lib.optionals isIptables [
+            path = lib.optionals ((cfg.settings.mode == "iptables") || (cfg.settings.mode == "ipset")) [
               pkgs.iptables
               pkgs.ipset
             ];
@@ -378,6 +370,7 @@ in
 
               StateDirectory = "crowdsec-firewall-bouncer-register crowdsec";
               StateDirectoryMode = "0750";
+              LogsDirectory = "crowdsec-firewall-bouncer";
 
               LockPersonality = true;
               PrivateDevices = true;
