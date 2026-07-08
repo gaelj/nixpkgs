@@ -10,7 +10,6 @@
   bc,
   opensnitch,
   nixosTests,
-  fetchpatch2,
 }:
 
 stdenv.mkDerivation rec {
@@ -18,17 +17,6 @@ stdenv.mkDerivation rec {
   version = "${opensnitch.version}-${kernel.version}";
 
   inherit (opensnitch) src;
-
-  patches = [
-    (fetchpatch2 {
-      # fixes build failures on kernel >= 6.19 (#490127)
-      # remove when added to a release
-      name = "fix-kernel-6.19-build.patch";
-      stripLen = 1;
-      url = "https://github.com/evilsocket/opensnitch/commit/614537c92ec82f54f76a45fb406ad2fb6e6fa618.patch?full_index=1";
-      hash = "sha256-FCJfDhgmnm1GXPDaxr+YpVWTRrwBvjVzvGdZSFB6SqQ=";
-    })
-  ];
 
   sourceRoot = "${src.name}/ebpf_prog";
 
