@@ -17,8 +17,12 @@
   nix-update-script,
 }:
 let
-  # Override protoc-gen-go-grpc to use the compatible version
-  # Should be droppable on opensnitch 1.7.0
+  # The daemon vendors google.golang.org/grpc v1.32.0, whose support-package
+  # constants stop at Version7. Current protoc-gen-go-grpc (1.6.x) emits stubs
+  # referencing grpc.SupportPackageIsVersion9 / BidiStreamingClient / StaticMethod,
+  # which do not exist before grpc-go ~1.56+, so the build fails with
+  # "undefined: grpc.SupportPackageIsVersion9". Keep the plugin pinned to 1.3.0
+  # until opensnitch bumps its grpc dependency.
   protoc-gen-go-grpc' = protoc-gen-go-grpc.overrideAttrs (oldAttrs: rec {
     version = "1.3.0";
 
@@ -34,13 +38,14 @@ let
 in
 buildGoModule (finalAttrs: {
   pname = "opensnitch";
-  version = "1.8.0";
+  version = "1.9.0-unstable-2026-07-26";
 
   src = fetchFromGitHub {
     owner = "evilsocket";
     repo = "opensnitch";
-    tag = "v${finalAttrs.version}";
-    hash = "sha256-Bz5h2DEC61vpkeWZxFlogh6NvTubJcnHuwgTNSzZd68=";
+    #tag = "v${finalAttrs.version}";
+    rev = "a1353848ba1b660320e90cefea782c3fba272c00";
+    hash = "sha256-HnUJA3tdoqOdtO0ZsEtxAmIbFprsW8nI+n50CDNPDh4=";
   };
 
   postPatch = ''
@@ -63,7 +68,7 @@ buildGoModule (finalAttrs: {
     protoc-gen-go-grpc'
   ];
 
-  vendorHash = "sha256-6/N/E+uk6RVmSLy6fSWjHj+J5mPFXtHZwWThhFJnfYY=";
+  vendorHash = "sha256-bxZoaX7Y8xKsqnfqmP50KDfks41xPTn4pf2is3mLccs=";
 
   preBuild = ''
     make -C ../proto ../daemon/ui/protocol/ui.pb.go
