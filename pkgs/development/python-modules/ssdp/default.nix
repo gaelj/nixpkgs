@@ -7,6 +7,7 @@
   flit-core,
   flit-scm,
   pygments,
+  python,
   pytest-cov-stub,
   pytestCheckHook,
 }:
@@ -36,6 +37,11 @@ buildPythonPackage (finalAttrs: {
     flit-scm
   ];
 
+  dependencies = [
+    click
+    pygments
+  ];
+
   optional-dependencies = {
     cli = [
       click
@@ -50,7 +56,7 @@ buildPythonPackage (finalAttrs: {
   ]
   ++ lib.flatten (builtins.attrValues finalAttrs.passthru.optional-dependencies);
 
-  disabledTests = [
+  disabledTests = lib.optionals (lib.versionAtLeast python.version "3.14") [
     "test_call"
     "test_call_w_search_target"
   ];
