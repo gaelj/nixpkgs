@@ -93,6 +93,9 @@ let
     ProtectHome = true;
     ProtectSystem = "strict";
     ReadWritePaths = [ cfg.dataDir ];
+    Environment = [
+      "PATH=${lib.makeBinPath [ pkgs.rahasher ]}:/run/current-system/sw/bin"
+    ];
   };
 in
 {
