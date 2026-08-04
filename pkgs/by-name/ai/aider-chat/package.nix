@@ -6,6 +6,7 @@
   fetchpatch,
   replaceVars,
   gitMinimal,
+  installShellFiles,
   portaudio,
   playwright-driver,
   nix-update-script,
@@ -141,6 +142,10 @@ let
       posthog
       propcache
       python-dateutil
+    ];
+
+    nativeBuildInputs = [
+      installShellFiles
     ];
 
     buildInputs = [ portaudio ];
@@ -311,6 +316,12 @@ let
         ];
       };
     };
+
+    postInstall = lib.optionalString (stdenv.buildPlatform.canExecute stdenv.hostPlatform) ''
+      installShellCompletion --cmd aider \
+        --bash <($out/bin/aider --shell-completions bash) \
+        --zsh <($out/bin/aider --shell-completions zsh)
+    '';
 
     meta = {
       description = "AI pair programming in your terminal";
