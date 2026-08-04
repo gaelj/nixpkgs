@@ -2,6 +2,7 @@
   fetchFromGitHub,
   lib,
   rustPlatform,
+  stdenv,
 }:
 
 rustPlatform.buildRustPackage (finalAttrs: {
