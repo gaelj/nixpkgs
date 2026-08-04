@@ -1,6 +1,7 @@
 {
   stdenv,
   fetchFromGitHub,
+  installShellFiles,
   lib,
   makeWrapper,
   rustPlatform,
@@ -24,7 +25,10 @@ rustPlatform.buildRustPackage (finalAttrs: {
 
   cargoHash = "sha256-tQCm8KMVWo6KiKVOMDitHtDXwYGM7INXcT+7fEEiIiI=";
 
-  nativeBuildInputs = [ makeWrapper ];
+  nativeBuildInputs = [
+    installShellFiles
+    makeWrapper
+  ];
 
   buildInputs = lib.optionals stdenv.hostPlatform.isDarwin [ libiconv ];
 
@@ -32,6 +36,12 @@ rustPlatform.buildRustPackage (finalAttrs: {
     wrapProgram $out/bin/navi \
       --prefix PATH : "$out/bin" \
       --prefix PATH : ${lib.makeBinPath ([ wget ] ++ lib.optionals withFzf [ fzf ])}
+  ''
+  + lib.optionalString (stdenv.buildPlatform.canExecute stdenv.hostPlatform) ''
+    installShellCompletion --cmd navi \
+      --bash <($out/bin/navi widget bash) \
+      --fish <($out/bin/navi widget fish) \
+      --zsh <($out/bin/navi widget zsh)
   '';
 
   checkFlags = [
