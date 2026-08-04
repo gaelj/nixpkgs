@@ -3,6 +3,7 @@
   stdenv,
   python3Packages,
   fetchFromGitHub,
+  installShellFiles,
   versionCheckHook,
   nix-update-script,
 }:
