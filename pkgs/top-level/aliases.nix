@@ -1449,7 +1449,6 @@ mapAliases {
   libdbusmenu-gtk2 = throw "'libdbusmenu-gtk2' has been removed as it depended on the deprecated GTK 2 engine."; # Added 2026-08-10
   libdevil = throw "libdevil has been removed, as it was unmaintained in Nixpkgs and upstream since 2017"; # Added 2025-09-16
   libdevil-nox = throw "libdevil has been removed, as it was unmaintained in Nixpkgs and upstream since 2017"; # Added 2025-09-16
-  libdisplay-info_0_2 = throw "`libdisplay-info_0_2` has been removed as it is was unused in Nixpkgs. Consider upgrading to `libdisplay-info_0_3` or `libdisplay-info` instead"; # Added 2026-08-04
   libdvdnav_4_2_1 = throw "`libdvdnav_4_2_1` has been removed. Consider upgrading to `libdvdnav`"; # Added 2026-11-08
   libdvdread_4_9_9 = throw "`libdvdread_4_9_9` has been removed. Consider upgrading to `libdvdread`"; # Added 2026-11-08
   libdwarf-lite = throw "`libdwarf-lite` has been replaced by `libdwarf` as it's mostly a mirror"; # Added 2025-06-16
