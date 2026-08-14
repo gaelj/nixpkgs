@@ -16,7 +16,9 @@ let
       cache.blobdescriptor = blobCache;
       delete.enabled = cfg.enableDelete;
     }
-    // (lib.optionalAttrs (cfg.storagePath != null) { filesystem.rootdirectory = cfg.storagePath; });
+    // (lib.optionalAttrs (cfg.storagePath != null) {
+      filesystem.rootdirectory = cfg.storagePath;
+    });
     http = {
       addr = "${cfg.listenAddress}:${toString cfg.port}";
       headers.X-Content-Type-Options = [ "nosniff" ];
@@ -28,7 +30,16 @@ let
     };
   };
 
-  configFile = cfg.configFile;
+  needsRuntimeConfig = cfg.enableRedisCache && cfg.redisPasswordFile != null;
+
+  staticConfigFile = pkgs.writeText "docker-registry-config.yml" (
+    builtins.toJSON (lib.recursiveUpdate registryConfig cfg.extraConfig)
+  );
+
+  runtimeConfigPath = "/run/docker-registry/config.yml";
+
+  configFile = if needsRuntimeConfig then runtimeConfigPath else staticConfigFile;
+
 in
 {
   options.services.dockerRegistry = {
@@ -76,19 +87,21 @@ in
     redisUrl = lib.mkOption {
       type = lib.types.str;
       default = "localhost:6379";
-      description = "Set redis host and port.";
+      description = "Redis host and port.";
     };
 
-    redisPassword = lib.mkOption {
-      type = lib.types.str;
-      default = "";
-      description = "Set redis password.";
+    redisPasswordFile = lib.mkOption {
+      type = lib.types.nullOr lib.types.path;
+      default = null;
+      description = ''
+        Path to a file containing the Redis password.  The file is loaded via
+        systemd's LoadCredential mechanism and is never written to the Nix
+        store.  Leave as null when no password is required.
+      '';
     };
 
     extraConfig = lib.mkOption {
-      description = ''
-        Docker extra registry configuration.
-      '';
+      description = "Docker extra registry configuration via attribute set.";
       example = lib.literalExpression ''
         {
           log.level = "debug";
@@ -99,14 +112,15 @@ in
     };
 
     configFile = lib.mkOption {
-      default = pkgs.writeText "docker-registry-config.yml" (
-        builtins.toJSON (lib.recursiveUpdate registryConfig cfg.extraConfig)
-      );
-      defaultText = lib.literalExpression ''pkgs.writeText "docker-registry-config.yml" "# my custom docker-registry-config.yml ..."'';
+      default = staticConfigFile;
+      defaultText = lib.literalExpression ''
+        pkgs.writeText "docker-registry-config.yml" "# generated config"
+      '';
       description = ''
-        Path to CNCF distribution config file.
-
-        Setting this option will override any configuration applied by the extraConfig option.
+        Path to CNCF distribution config file.  Overrides extraConfig entirely
+        when set.  Note: when redisPasswordFile is set the service generates a
+        runtime config under /run/docker-registry/ - this option is ignored in
+        that case.
       '';
       type = lib.types.path;
     };
@@ -146,26 +160,115 @@ in
       wantedBy = [ "multi-user.target" ];
       after = [ "network.target" ];
 
+      preStart = lib.mkIf needsRuntimeConfig ''
+        set -euo pipefail
+        REDIS_PASSWORD=$(cat "$CREDENTIALS_DIRECTORY/redis-password")
+        # Merge the static template with the runtime password.
+        # jq is used for safe JSON manipulation; it is available in pkgs.jq.
+        ${pkgs.jq}/bin/jq \
+          --arg pw "$REDIS_PASSWORD" \
+          '.redis.password = $pw' \
+          ${staticConfigFile} \
+          > ${runtimeConfigPath}
+        chmod 600 ${runtimeConfigPath}
+      '';
+
       serviceConfig = {
         ExecStart = "${lib.getExe cfg.package} serve ${configFile}";
         User = "docker-registry";
-        WorkingDirectory = cfg.storagePath;
-        AmbientCapabilities = lib.mkIf (cfg.port < 1024) "cap_net_bind_service";
+        Group = "docker-registry";
+        WorkingDirectory = lib.mkIf (cfg.storagePath != null) cfg.storagePath;
+
+        LoadCredential = lib.mkIf (cfg.redisPasswordFile != null) "redis-password:${cfg.redisPasswordFile}";
+
+        ProtectSystem = "strict";
+        ProtectHome = true;
+        PrivateTmp = true;
+        PrivateDevices = true;
+        ReadWritePaths =
+          lib.optional (cfg.storagePath != null) cfg.storagePath
+          ++ lib.optional needsRuntimeConfig "/run/docker-registry";
+
+        RuntimeDirectory = "docker-registry";
+        RuntimeDirectoryMode = "0750";
+        StateDirectory = lib.mkIf (cfg.storagePath == "/var/lib/docker-registry") "docker-registry";
+
+        AmbientCapabilities = lib.mkIf (cfg.port < 1024) [ "CAP_NET_BIND_SERVICE" ];
+        CapabilityBoundingSet = if cfg.port < 1024 then [ "CAP_NET_BIND_SERVICE" ] else [ "" ];
+
+        PrivateUsers = !(cfg.port < 1024);
+
+        NoNewPrivileges = true;
+
+        ProtectKernelTunables = true;
+        ProtectKernelModules = true;
+        ProtectKernelLogs = true;
+        ProtectControlGroups = true;
+        ProtectClock = true;
+        ProtectHostname = true;
+        ProtectProc = "invisible";
+        ProcSubset = "pid";
+
+        RestrictNamespaces = true;
+        RestrictRealtime = true;
+        RestrictSUIDSGID = true;
+        RemoveIPC = true;
+        LockPersonality = true;
+
+        RestrictAddressFamilies = [
+          "AF_INET"
+          "AF_INET6"
+        ]
+        ++ lib.optional cfg.enableRedisCache "AF_UNIX";
+
+        MemoryDenyWriteExecute = true;
+
+        SystemCallArchitectures = "native";
+        SystemCallFilter = [
+          "@system-service"
+          "~@privileged"
+          "~@resources"
+        ];
+
+        UMask = "0027";
       };
     };
 
     systemd.services.docker-registry-garbage-collect = {
-      description = "Run Garbage Collection for docker registry";
+      description = "Garbage collection for docker-registry";
+
+      conflicts = [ "docker-registry.service" ];
+      before = [ "docker-registry.service" ];
 
       restartIfChanged = false;
       unitConfig.X-StopOnRemoval = false;
 
-      serviceConfig.Type = "oneshot";
+      serviceConfig = {
+        Type = "oneshot";
+        User = "docker-registry";
+        Group = "docker-registry";
 
-      script = ''
-        ${cfg.package}/bin/registry garbage-collect ${configFile}
-        /run/current-system/systemd/bin/systemctl restart docker-registry.service
-      '';
+        ExecStart = "${cfg.package}/bin/registry garbage-collect --delete-untagged ${configFile}";
+
+        NoNewPrivileges = true;
+        ProtectSystem = "strict";
+        ProtectHome = true;
+        PrivateTmp = true;
+        PrivateDevices = true;
+        ReadWritePaths = lib.optional (cfg.storagePath != null) cfg.storagePath;
+        CapabilityBoundingSet = [ "" ];
+        RestrictNamespaces = true;
+        RestrictRealtime = true;
+        RestrictSUIDSGID = true;
+        LockPersonality = true;
+        MemoryDenyWriteExecute = true;
+        SystemCallArchitectures = "native";
+        SystemCallFilter = [
+          "@system-service"
+          "~@privileged"
+          "~@resources"
+        ];
+      };
 
       startAt = lib.optional cfg.enableGarbageCollect cfg.garbageCollectDates;
     };
