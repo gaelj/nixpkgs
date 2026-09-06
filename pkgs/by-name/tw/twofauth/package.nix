@@ -27,17 +27,17 @@ let
 in
 php.buildComposerProject2 (finalAttrs: {
   pname = "2fauth";
-  version = "8.0.1";
+  version = "8.0.2";
   __structuredAttrs = true;
 
   src = fetchFromGitHub {
     owner = "Bubka";
     repo = "2FAuth" ;
     tag = "v${finalAttrs.version}";
-    hash = "sha256-ssvmiYcLrSCk5xXKnFl5osVVC+KFzwlaTIo9RMNbBwA=";
+    hash = "sha256-w+nhLqdcog58ks0SYehPDi0Ady8UreC/2MsHtBB5S3M=";
   };
 
-  vendorHash = "sha256-MUWWjNXZWXb5Pfjf6RKnFd2QlphBDMmlXzrfI69RORs=";
+  vendorHash = "sha256-DcIR8kEHme62hT/mUpCOxE+VXlRt4C5AmPu6MpiELJw=";
 
   composerNoDev = true;
   composerNoPlugins = true;
