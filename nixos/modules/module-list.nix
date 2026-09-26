@@ -70,6 +70,7 @@
   ./hardware/digitalbitbox.nix
   ./hardware/facter
   ./hardware/flipperzero.nix
+  ./hardware/flirc-skip1s.nix
   ./hardware/flirc.nix
   ./hardware/fw-fanctrl.nix
   ./hardware/glasgow.nix
