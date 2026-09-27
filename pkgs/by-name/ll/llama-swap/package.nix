@@ -21,12 +21,13 @@ let
 in
 buildGo127Module (finalAttrs: {
   pname = "llama-swap";
-  version = "255";
+  version = "260";
 
   outputs = [
     "out"
     "wol" # wake on lan proxy
     "vllm_wrapper" # helper for using `vllm` with `--enable-sleep-mode`
+    "kubeswap" # manages inference backends in a Kubernetes namespace
     "utils"
   ];
 
@@ -34,7 +35,7 @@ buildGo127Module (finalAttrs: {
     owner = "mostlygeek";
     repo = "llama-swap";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-+iq41tv9JIqvGeElZnFn7AsrXEA1qUp2fKY+Gojwn5s=";
+    hash = "sha256-W5JJW1/qQm39U/g42jseRmGQobqqWRfVsJ2lT/7K9P8=";
     # populate values that require us to use git. By doing this in postFetch we
     # can delete .git afterwards and maintain better reproducibility of the src.
     leaveDotGit = true;
@@ -47,7 +48,7 @@ buildGo127Module (finalAttrs: {
     '';
   };
 
-  vendorHash = "sha256-sf3VZ9vJaO8LMrUgWBvw7xfywpzBolLdVb4oMF0nbT8=";
+  vendorHash = "sha256-yelob7FlaGymASUP0DAUkALQm5vnXZnN5ThbnSkH2Ak=";
 
   # Upstream only embeds the UI when this build tag is set.
   tags = lib.optionals withUI [ "embed_ui" ];
@@ -152,6 +153,9 @@ buildGo127Module (finalAttrs: {
 
     mkdir -p "$vllm_wrapper/bin"
     mv "$GOPATH/bin/vllm-wrapper" "$vllm_wrapper/bin/"
+
+    mkdir -p "$kubeswap/bin"
+    mv "$GOPATH/bin/kubeswap" "$kubeswap/bin/"
 
     mkdir -p "$utils/bin"
     mv "$GOPATH/bin/"{fake-model,test-concurrency} "$utils/bin/"
