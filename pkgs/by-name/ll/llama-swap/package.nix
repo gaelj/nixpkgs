@@ -101,7 +101,15 @@ buildGo127Module (finalAttrs: {
 
   checkFlags =
     let
-      skippedTests = lib.optionals stdenv.hostPlatform.isDarwin [
+      skippedTests = [
+        # Flaky: log lines are broadcast asynchronously by a background
+        # goroutine (upstream #878). A line written just before subscribing
+        # can be published after the subscription exists and arrive as live
+        # data, so history can leak through despite ?no-history. Fails under
+        # load on busy build machines; introduced in v260 (#1172).
+        "TestServer_APILogEvents_NoHistory"
+      ]
+      ++ lib.optionals stdenv.hostPlatform.isDarwin [
         # Fail only on *-darwin intermittently
         # https://github.com/mostlygeek/llama-swap/issues/320
         "TestProcess_AutomaticallyStartsUpstream"
