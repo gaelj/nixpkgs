@@ -23,6 +23,9 @@ mkNginxPlugin (finalAttrs: {
       url = "https://github.com/evanmiller/mod_zip/commit/8e65b82c82c7890f67a6107271c127e9881b6313.patch";
       hash = "sha256-rPmdWlTJID/GoS3Ud8S7DM93icA9zWTJ1a4DIVzH5Ug=";
     })
+    # pieces_sent is only read inside ngx_log_debug2, which compiles to nothing in
+    # non-debug nginx builds; without this the module fails to build under -Werror.
+    ./fix-unused-but-set-pieces-sent.patch
   ];
 
   meta = {
