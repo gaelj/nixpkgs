@@ -1,0 +1,12 @@
+--- a/ngx_http_zip_module.c
++++ b/ngx_http_zip_module.c
+@@ -773,6 +773,9 @@
+             break;
+     }
+ 
++    /* pieces_sent is only consumed by the debug log below */
++    (void)pieces_sent;
++
+     ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+             "mod_zip: sent %d pieces, last rc = %d", pieces_sent, rc);
+ 
