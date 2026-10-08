@@ -976,6 +976,7 @@
   ./services/misc/ollaya.nix
   ./services/misc/ombi.nix
   ./services/misc/omnom.nix
+  ./services/misc/open-terminal.nix
   ./services/misc/open-webui.nix
   ./services/misc/orthanc.nix
   ./services/misc/osrm.nix
