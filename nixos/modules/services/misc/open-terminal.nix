@@ -27,11 +27,11 @@ in
 
     host = lib.mkOption {
       type = lib.types.str;
-      default = "[IP_ADDRESS]";
+      default = "0.0.0.0";
       description = ''
         Address the server binds to, passed to `--host`. Defaults to
-        `[IP_ADDRESS]` (all network interfaces), matching upstream. Set to
-        `[IP_ADDRESS]` to restrict access to this machine.
+        `0.0.0.0` (all network interfaces), matching upstream. Set to
+        `127.0.0.1` to restrict access to this machine.
       '';
     };
 
