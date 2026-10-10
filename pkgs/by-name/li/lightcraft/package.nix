@@ -1,37 +1,41 @@
-{ lib
-, fetchFromGitHub
-, rustPlatform
-, pkg-config
-, copyDesktopItems
-, makeDesktopItem
-, patchelf
-, libx11
-, libxcb
-, libGL
-, libxkbcommon
-, wayland
-, vulkan-loader
-, libxcursor
-, libxi
-, libxinerama
-, libxt
-, dbus
-, craftFonts
+{
+  lib,
+  fetchFromGitHub,
+  rustPlatform,
+  rustc,
+  pkg-config,
+  copyDesktopItems,
+  makeDesktopItem,
+  patchelf,
+  libx11,
+  libxcb,
+  libGL,
+  libxkbcommon,
+  nix-update-script,
+  wayland,
+  vulkan-loader,
+  libxcursor,
+  libxi,
+  libxinerama,
+  libxt,
+  dbus,
+  craft-fonts,
+  versionCheckHook,
 }:
 
 rustPlatform.buildRustPackage (finalAttrs: {
   pname = "lightcraft";
-  version = "0.4.0";
+  version = "0.6.0";
   __structuredAttrs = true;
 
   src = fetchFromGitHub {
     owner = "storytold";
     repo = "lightcraft";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-6/MxXgVN+1IPj4i/tjpUvP0xAKk22cuY7p6WQraZ1ug=";
+    hash = "sha256-hPRTJQql7TzmqZgkmDU1W3/IQMLQD/XzHNi6Lyv4XE0=";
   };
 
-  cargoLock = { lockFile = "${finalAttrs.src}/Cargo.lock"; };
+  cargoHash = "sha256-UyQP8+z8gd5g0uoeGK6C8O0uw318vJ1l/IZ7ShTdcek=";
 
   nativeBuildInputs = [
     pkg-config
@@ -56,30 +60,52 @@ rustPlatform.buildRustPackage (finalAttrs: {
   ];
 
   env = {
-    CRAFT_FONTS_DIR = "${craftFonts}";
+    CRAFT_FONTS_DIR = "${craft-fonts}";
     CRAFT_FONTS_REQUIRED = "1";
   };
 
-  cargoBuildFlags = [ "-p" "lightcraft" "-p" "lightcraft-cli" ];
+  cargoBuildFlags = [
+    "-p"
+    "lightcraft"
+    "-p"
+    "lightcraft-cli"
+  ];
 
   # Run the test binaries single-threaded: the catalog lock tests (issue #99) race on high-core
   # machines — a child spawned by one test inherits the flock file descriptors of concurrently
   # running sibling tests, so an open can be refused right after the first one lets go.
-  cargoTestFlags = [ "--" "--test-threads=1" ];
+  cargoTestFlags = [
+    "--"
+    "--test-threads=1"
+  ];
 
   postInstall = ''
     install -d $out/share/icons
-    cp -r assets/app-icon/hicolor/* $out/share/icons/
+    cp -r assets/app-icon/hicolor $out/share/icons
 
     docdir=$out/share/doc/${finalAttrs.pname}-${finalAttrs.version}
     install -d $docdir
-    for lic in ${craftFonts}/fonts/*/OFL.txt; do
+    for lic in ${craft-fonts}/fonts/*/OFL.txt; do
       install -Dm644 "$lic" "$docdir/OFL-$(basename "$(dirname "$lic")").txt"
     done
   '';
 
   postFixup = ''
-    patchelf --set-rpath "${lib.makeLibraryPath [ libx11 libxcb libGL libxkbcommon wayland vulkan-loader libxcursor libxi libxinerama libxt dbus ]}" \
+    patchelf --set-rpath "${
+      lib.makeLibraryPath [
+        libx11
+        libxcb
+        libGL
+        libxkbcommon
+        wayland
+        vulkan-loader
+        libxcursor
+        libxi
+        libxinerama
+        libxt
+        dbus
+      ]
+    }" \
       $out/bin/lightcraft
   '';
 
@@ -107,7 +133,12 @@ rustPlatform.buildRustPackage (finalAttrs: {
       "image/x-panasonic-rw"
       "image/x-pentax-pef"
     ];
-    categories = [ "Graphics" "2DGraphics" "RasterGraphics" "Photography" ];
+    categories = [
+      "Graphics"
+      "2DGraphics"
+      "RasterGraphics"
+      "Photography"
+    ];
     startupNotify = true;
     startupWMClass = "ai.storyteller.lightcraft";
     keywords = [
@@ -121,9 +152,15 @@ rustPlatform.buildRustPackage (finalAttrs: {
 
   desktopItems = [ finalAttrs.desktopItem ];
 
+  nativeInstallCheckInputs = [ versionCheckHook ];
+  doInstallCheck = true;
+
+  passthru.updateScript = nix-update-script { };
+
   meta = {
     description = "LightCraft desktop app";
     homepage = "https://github.com/storytold/lightcraft";
+    changelog = "https://github.com/storytold/lightcraft/releases/tag/${finalAttrs.src.tag}";
     license = lib.licenses.OR [
       lib.licenses.asl20
       lib.licenses.mit
@@ -132,5 +169,6 @@ rustPlatform.buildRustPackage (finalAttrs: {
     maintainers = with lib.maintainers; [
       gaelj
     ];
+    platforms = rustc.meta.platforms;
   };
 })
