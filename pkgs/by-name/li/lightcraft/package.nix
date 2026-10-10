@@ -21,14 +21,14 @@
 
 rustPlatform.buildRustPackage (finalAttrs: {
   pname = "lightcraft";
-  version = "0.4.0";
+  version = "0.5.0";
   __structuredAttrs = true;
 
   src = fetchFromGitHub {
     owner = "storytold";
     repo = "lightcraft";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-6/MxXgVN+1IPj4i/tjpUvP0xAKk22cuY7p6WQraZ1ug=";
+    hash = "sha256-N/V/MIf+8u9zCytsWLIr4muXjmrqfc+o78PFUFhlQS8=";
   };
 
   cargoLock = { lockFile = "${finalAttrs.src}/Cargo.lock"; };
