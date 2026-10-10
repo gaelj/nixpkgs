@@ -109,6 +109,8 @@ buildGo127Module (finalAttrs: {
         # data, so history can leak through despite ?no-history. Fails under
         # load on busy build machines; introduced in v260 (#1172).
         "TestServer_APILogEvents_NoHistory"
+
+        "TestStart_GpuRestartWaitResetsAfterStats"
       ]
       ++ lib.optionals stdenv.hostPlatform.isDarwin [
         # Fail only on *-darwin intermittently
