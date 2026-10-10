@@ -19,17 +19,17 @@
 
 rustPlatform.buildRustPackage (finalAttrs: {
   pname = "gridcraft";
-  version = "0.3.0";
+  version = "0.4.0";
   __structuredAttrs = true;
 
   src = fetchFromGitHub {
     owner = "storytold";
     repo = "gridcraft";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-C7MOB7YvkYG3aE3PAEtRChdYCRi2tTfu6d/qQhTNX+c=";
+    hash = "sha256-fW7nSYdmUUWjVqZnL2/Ctzimqosg678XQGmycKK8U1k=";
   };
 
-  cargoHash = "sha256-lYyBPwE04DrNzUtYPV3aH0mDFuryE/AWesDzV8W2NqA=";
+  cargoHash = "";
 
   nativeBuildInputs = [
     pkg-config
