@@ -19,14 +19,14 @@
 
 rustPlatform.buildRustPackage (finalAttrs: {
   pname = "wordcraft";
-  version = "0.3.0";
+  version = "0.4.0";
   __structuredAttrs = true;
 
   src = fetchFromGitHub {
     owner = "storytold";
     repo = "wordcraft";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-uhePuWSXq6uybLviJg4H2Qlb5mlV4OPwryT2vqq+9zU=";
+    hash = "sha256-IBfOqEMpJy+FkIBVgtVsKYwRIqh86Tx2SUdt7I+2LdQ=";
   };
 
   cargoLock = { lockFile = "${finalAttrs.src}/Cargo.lock"; };
