@@ -56,11 +56,6 @@ buildPythonPackage (finalAttrs: {
   ]
   ++ lib.flatten (builtins.attrValues finalAttrs.passthru.optional-dependencies);
 
-  disabledTests = [
-    "test_call"
-    "test_call_w_search_target"
-  ];
-
   disabledTests = lib.optionals (lib.versionAtLeast python.version "3.14") [
     "test_call"
     "test_call_w_search_target"
