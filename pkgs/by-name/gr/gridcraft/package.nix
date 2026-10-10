@@ -11,6 +11,10 @@
 , libGL
 , libxkbcommon
 , wayland
+, libxcursor
+, libxi
+, vulkan-loader
+, dbus
 }:
 
 rustPlatform.buildRustPackage (finalAttrs: {
@@ -38,6 +42,12 @@ rustPlatform.buildRustPackage (finalAttrs: {
     libGL
     libxkbcommon
     wayland
+    # dlopened at runtime by winit/x11-dl, x11rb (dl-libxcb), xkbcommon-dl, wgpu and
+    # g-desktop-portal; the fork's libx11 also ships libX11-xcb.so.1 in the same dir.
+    libxcursor
+    libxi
+    vulkan-loader
+    dbus
   ];
 
   cargoBuildFlags = [ "-p" "gridcraft" "-p" "gridcraft-cli" ];
@@ -48,7 +58,7 @@ rustPlatform.buildRustPackage (finalAttrs: {
   '';
 
   postFixup = ''
-    patchelf --set-rpath "${lib.makeLibraryPath [ libx11 libxcb libGL libxkbcommon wayland ]}" \
+    patchelf --set-rpath "${lib.makeLibraryPath [ libx11 libxcb libGL libxkbcommon wayland libxcursor libxi vulkan-loader dbus ]}" \
       $out/bin/gridcraft
   '';
 
