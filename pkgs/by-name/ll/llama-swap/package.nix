@@ -21,7 +21,7 @@ let
 in
 buildGo127Module (finalAttrs: {
   pname = "llama-swap";
-  version = "262";
+  version = "263";
 
   outputs = [
     "out"
@@ -35,7 +35,7 @@ buildGo127Module (finalAttrs: {
     owner = "mostlygeek";
     repo = "llama-swap";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-DAYaR+N7alGbdLsGlaiDlsHiqxOMg65069i/vHOkLKk=";
+    hash = "sha256-7n4KrBF+8rFohTqc8xJueLbqo8SAnejIZ8TH5Magf2o=";
     # populate values that require us to use git. By doing this in postFetch we
     # can delete .git afterwards and maintain better reproducibility of the src.
     leaveDotGit = true;
@@ -109,6 +109,8 @@ buildGo127Module (finalAttrs: {
         # data, so history can leak through despite ?no-history. Fails under
         # load on busy build machines; introduced in v260 (#1172).
         "TestServer_APILogEvents_NoHistory"
+
+        "TestStart_GpuRestartWaitResetsAfterStats"
       ]
       ++ lib.optionals stdenv.hostPlatform.isDarwin [
         # Fail only on *-darwin intermittently
