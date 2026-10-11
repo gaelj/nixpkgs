@@ -133,16 +133,13 @@ libraries".
   `sed -i '1a Environment=...' $out/share/applications/<app>.desktop`.
 - buildRustPackage auto-adds the `copyDesktopItems` hook when `desktopItems`
   is set.
-- App icons: install upstream's `assets/app-icon/hicolor/*` under
-  `$out/share/icons/hicolor/` AND publish an `index.theme` (upstream ships no
-  theme file, and without one GTK/GIO/KDE icon lookups cannot see the icons at
-  all — launchers fall back to a generic icon). Do not set
-  `Inherits=hicolor`: this tree's hicolor-icon-theme setup hook would
-  self-symlink the theme. All craft apps publish a byte-identical index.theme
-  (same `[Icon Theme]` header + `Directories=` union of every size any app
-  ships, `Contexts=Apps`) so a merged profile dedups to exactly one valid
-  file; GTK skips listed-but-missing directories, so the union is safe for
-  each store path on its own.
+- App icons: `install -d $out/share/icons` then
+  `cp -r assets/app-icon/hicolor $out/share/icons`. The `hicolor` component
+  must be kept (`share/icons/hicolor/<size>/apps/<id>.png`) — installing the
+  size dirs directly under `share/icons/` makes launchers fall back to a
+  generic icon. No `index.theme` is needed (upstream ships none and the
+  merged-profile lookup works without one). Do not set `Inherits=hicolor`:
+  this tree's hicolor-icon-theme setup hook would self-symlink the theme.
 
 ## Building & fetching (infrastructure)
 
@@ -182,9 +179,8 @@ libraries".
   (store dir names are lowercase, e.g. `libxi-1.8.3`).
 - Desktop file at `$out/share/applications/<app>.desktop`: bare `Exec=`/
   `TryExec=`, `StartupWMClass`, `GenericName`, icon entries present.
-- Icons installed under `share/icons/hicolor/` (count matches upstream assets;
-  cadcraft lacks a `scalable` dir) and `index.theme` present at
-  `share/icons/hicolor/index.theme`.
+- Icons installed under `share/icons/hicolor/<size>/apps/` (count matches
+  upstream assets; cadcraft lacks a `scalable` dir).
 - Font licences: `share/doc/<app>-<ver>/OFL-<family>.txt` per bundled family
   (photocraft pins an older craft-fonts rev and carries exactly three Japanese
   families; the rest carry five).
