@@ -18,17 +18,17 @@
 
 rustPlatform.buildRustPackage (finalAttrs: {
   pname = "cadcraft";
-  version = "0.3.0";
+  version = "0.5.0";
   __structuredAttrs = true;
 
   src = fetchFromGitHub {
     owner = "storytold";
     repo = "cadcraft";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-VFw6np9BSOdBQrKlIiNnQ0kKKNfGnYMctbceBpmE778=";
+    hash = "sha256-TD7qh64rwYZOymru3EoRuuBGJJRZ75xE1WJC+Mq8RhQ=";
   };
 
-  cargoLock = { lockFile = "${finalAttrs.src}/Cargo.lock"; };
+  cargoHash = "sha256-Y8bqSY/ok6gmH/V4C0AL0j4CDMxEIXkYdm/VBHuB4UI=";
 
   nativeBuildInputs = [
     pkg-config
@@ -52,8 +52,16 @@ rustPlatform.buildRustPackage (finalAttrs: {
   cargoBuildFlags = [ "-p" "cadcraft" "-p" "cadcraft-cli" ];
 
   postInstall = ''
-    install -d $out/share/icons
-    cp -r assets/app-icon/hicolor/* $out/share/icons/
+    # Install under the hicolor theme and publish an index.theme; without one, GTK/KDE icon
+    # lookups cannot see the icons (upstream ships no index.theme).
+    install -d $out/share/icons/hicolor
+    cp -r assets/app-icon/hicolor/* $out/share/icons/hicolor/
+    printf '%s\n' \
+      '[Icon Theme]' \
+      'Name=Hicolor' \
+      'Directories=16x16,24x24,32x32,48x48,64x64,128x128,256x256,256x256@2,512x512,scalable' \
+      'Contexts=Apps' \
+      > $out/share/icons/hicolor/index.theme
   '';
 
   postFixup = ''
