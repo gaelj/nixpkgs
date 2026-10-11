@@ -21,6 +21,10 @@ shard tree, wired up by `pkgs/topplevel/by-name-overlay.nix` via
 
 ## Packaging a new craft app (workflow)
 
+When unsure how to package something, find inspiration on existing packages
+first — sibling `pkgs/by-name/...` packages and established nixpkgs patterns
+usually already encode the answer for this tree.
+
 1. Clone the source (`github.com/storytold/<app>`) and inspect: binaries in
    `cargoBuildFlags` (app + `<app>-cli`), whether `build.rs` reads
    `CRAFT_FONTS_DIR` (font embedding at compile time — no runtime Env= needed),
@@ -28,7 +32,8 @@ shard tree, wired up by `pkgs/topplevel/by-name-overlay.nix` via
    and which C libraries its Rust stack dlopens at runtime.
 2. Write `pkgs/by-name/<xx>/<app>/package.nix` using
    `pkgs/by-name/gr/gridcraft/package.nix` as the template.
-3. Fetch src with `fetchFromGitHub`; set `cargoLock = { lockFile = ... }`.
+3. Fetch src with `fetchFromGitHub`; pin dependencies with `cargoHash` (see
+   "Obtaining a cargoHash" below).
 4. Evaluate locally: `nix eval --impure --raw --expr '(import /home/gaj/nixpkgs {}).<app>.drvPath'`.
 5. Rsync the changed files to `aero-server:/home/gaj/nixpkgs/` (remote builds
    evaluate the remote tree), build there, fetch the result back locally via
@@ -47,6 +52,25 @@ shard tree, wired up by `pkgs/topplevel/by-name-overlay.nix` via
   `"${finalAttrs.pname}-${finalAttrs.version}"`.
 - Sibling attributes inside an attrset are not resolvable as bare names; pass
   them as callPackage arguments or reference `finalAttrs.<name>`.
+
+### Obtaining a cargoHash
+
+Use `cargoHash`, not `cargoLock = { lockFile = ... }`. It is the *recursive*
+hash of the entire vendored dependency tree (what `fetch-cargo-vendor-util
+create-vendor-staging` downloads per `Cargo.lock`) — NOT the sha256 of the
+`Cargo.lock` file. Recipe:
+
+1. Write `cargoHash = "";` in the package (an empty string; do not type an
+   AAAAA placeholder by hand). Never commit the empty value.
+2. Rsync and start a build on a remote. Nix builds the vendor tree as a
+   fixed-output derivation against a placeholder hash, then aborts with
+   `error: hash mismatch in fixed-output derivation ... got: sha256-...`.
+3. The `got:` line IS the cargoHash — pin it and rebuild.
+
+Recursive path hashes depend only on content + nix version (2.34.8 on all
+machines), so a hash revealed on any remote is valid everywhere. One empty-hash
+build per package reveals its value; it downloads the crates but compiles
+nothing, so several can run concurrently per machine.
 
 ## Runtime dlopen / RUNPATH rule (important)
 
@@ -109,6 +133,16 @@ libraries".
   `sed -i '1a Environment=...' $out/share/applications/<app>.desktop`.
 - buildRustPackage auto-adds the `copyDesktopItems` hook when `desktopItems`
   is set.
+- App icons: install upstream's `assets/app-icon/hicolor/*` under
+  `$out/share/icons/hicolor/` AND publish an `index.theme` (upstream ships no
+  theme file, and without one GTK/GIO/KDE icon lookups cannot see the icons at
+  all — launchers fall back to a generic icon). Do not set
+  `Inherits=hicolor`: this tree's hicolor-icon-theme setup hook would
+  self-symlink the theme. All craft apps publish a byte-identical index.theme
+  (same `[Icon Theme]` header + `Directories=` union of every size any app
+  ships, `Contexts=Apps`) so a merged profile dedups to exactly one valid
+  file; GTK skips listed-but-missing directories, so the union is safe for
+  each store path on its own.
 
 ## Building & fetching (infrastructure)
 
@@ -149,7 +183,8 @@ libraries".
 - Desktop file at `$out/share/applications/<app>.desktop`: bare `Exec=`/
   `TryExec=`, `StartupWMClass`, `GenericName`, icon entries present.
 - Icons installed under `share/icons/hicolor/` (count matches upstream assets;
-  deckcraft ships one fewer size than the others).
+  cadcraft lacks a `scalable` dir) and `index.theme` present at
+  `share/icons/hicolor/index.theme`.
 - Font licences: `share/doc/<app>-<ver>/OFL-<family>.txt` per bundled family
   (photocraft pins an older craft-fonts rev and carries exactly three Japanese
   families; the rest carry five).
