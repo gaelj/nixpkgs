@@ -1,36 +1,40 @@
-{ lib
-, fetchFromGitHub
-, rustPlatform
-, pkg-config
-, copyDesktopItems
-, makeDesktopItem
-, patchelf
-, libx11
-, libxcb
-, libGL
-, libxkbcommon
-, wayland
-, vulkan-loader
-, libxcursor
-, libxi
-, dbus
-, mesa
-, craftFonts
+{
+  lib,
+  fetchFromGitHub,
+  rustPlatform,
+  rustc,
+  pkg-config,
+  copyDesktopItems,
+  makeDesktopItem,
+  patchelf,
+  libx11,
+  libxcb,
+  libGL,
+  libxkbcommon,
+  nix-update-script,
+  wayland,
+  vulkan-loader,
+  libxcursor,
+  libxi,
+  dbus,
+  mesa,
+  craft-fonts,
+  versionCheckHook,
 }:
 
 rustPlatform.buildRustPackage (finalAttrs: {
   pname = "designcraft";
-  version = "0.4.0";
+  version = "0.6.0";
   __structuredAttrs = true;
 
   src = fetchFromGitHub {
     owner = "storytold";
     repo = "designcraft";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-rissTTWbEe7ugm030syYmoquNVf9PNUPn0fdd4Eo02k=";
+    hash = "sha256-DcLwrFQKOk+Ip2waFfUZ97VwnkBssmU7CrxRTYz+Xuk=";
   };
 
-  cargoLock = { lockFile = "${finalAttrs.src}/Cargo.lock"; };
+  cargoHash = "sha256-mHsJXvsj+osNJOe1sTV9fJwEDj9t7Cm8eYC8JbLw90M=";
 
   # Provides the software Vulkan driver (lavapipe) for the wgpu-based egui_kittest tests inside the
   # sandbox; upstream CI gets one from the runner image's mesa. A slim vulkanDrivers-only override
@@ -66,25 +70,42 @@ rustPlatform.buildRustPackage (finalAttrs: {
   '';
 
   env = {
-    CRAFT_FONTS_DIR = "${craftFonts}";
+    CRAFT_FONTS_DIR = "${craft-fonts}";
     CRAFT_FONTS_REQUIRED = "1";
   };
 
-  cargoBuildFlags = [ "-p" "designcraft" "-p" "designcraft-cli" ];
+  cargoBuildFlags = [
+    "-p"
+    "designcraft"
+    "-p"
+    "designcraft-cli"
+  ];
 
   postInstall = ''
     install -d $out/share/icons
-    cp -r assets/app-icon/hicolor/* $out/share/icons/
+    cp -r assets/app-icon/hicolor $out/share/icons
 
     docdir=$out/share/doc/${finalAttrs.pname}-${finalAttrs.version}
     install -d $docdir
-    for lic in ${craftFonts}/fonts/*/OFL.txt; do
+    for lic in ${craft-fonts}/fonts/*/OFL.txt; do
       install -Dm644 "$lic" "$docdir/OFL-$(basename "$(dirname "$lic")").txt"
     done
   '';
 
   postFixup = ''
-    patchelf --set-rpath "${lib.makeLibraryPath [ libx11 libxcb libGL libxkbcommon wayland vulkan-loader libxcursor libxi dbus ]}" \
+    patchelf --set-rpath "${
+      lib.makeLibraryPath [
+        libx11
+        libxcb
+        libGL
+        libxkbcommon
+        wayland
+        vulkan-loader
+        libxcursor
+        libxi
+        dbus
+      ]
+    }" \
       $out/bin/designcraft
   '';
 
@@ -96,7 +117,10 @@ rustPlatform.buildRustPackage (finalAttrs: {
     tryExec = "designcraft";
     exec = "designcraft";
     comment = "Lay out magazines, books and print documents";
-    categories = [ "Graphics" "Publishing" ];
+    categories = [
+      "Graphics"
+      "Publishing"
+    ];
     startupNotify = true;
     startupWMClass = "ai.storyteller.designcraft";
     keywords = [
@@ -114,9 +138,15 @@ rustPlatform.buildRustPackage (finalAttrs: {
 
   desktopItems = [ finalAttrs.desktopItem ];
 
+  nativeInstallCheckInputs = [ versionCheckHook ];
+  doInstallCheck = true;
+
+  passthru.updateScript = nix-update-script { };
+
   meta = {
     description = "DesignCraft desktop app";
     homepage = "https://github.com/storytold/designcraft";
+    changelog = "https://github.com/storytold/designcraft/releases/tag/${finalAttrs.src.tag}";
     license = lib.licenses.OR [
       lib.licenses.asl20
       lib.licenses.mit
@@ -125,5 +155,6 @@ rustPlatform.buildRustPackage (finalAttrs: {
     maintainers = with lib.maintainers; [
       gaelj
     ];
+    platforms = rustc.meta.platforms;
   };
 })
