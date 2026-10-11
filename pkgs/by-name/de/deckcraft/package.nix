@@ -38,19 +38,26 @@ let
 in
 rustPlatform.buildRustPackage (finalAttrs: {
   pname = "deckcraft";
-  version = "0.6.1";
-
+  version = "0.8.0";
   __structuredAttrs = true;
   strictDeps = true;
+
+  # Upstream releases build against this craft-fonts revision (release.yml CRAFT_FONTS_REF).
+  craft-fonts = fetchFromGitHub {
+    owner = "storytold";
+    repo = "craft-fonts";
+    rev = "43913056ce82a3fdad0ef69f6b88d1dc922a8104";
+    hash = "sha256-u1fC5spekizPXnrK6uiKEZSr2SJOaBF4ffLDbKkywEY=";
+  };
 
   src = fetchFromGitHub {
     owner = "storytold";
     repo = "deckcraft";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-c6uNNn58NsSeAoa87AU2bIMhCWmgPk/HoJ11IRhU4HU=";
+    hash = "sha256-kO8YBFzyip+NJmH2eFGGOB7OCOZWUhIGvEuxBzSemgk=";
   };
 
-  cargoHash = "sha256-z6QdxDIyLjr8Es08bpQEUxirK48PqBVIjjKPGHgZFXE=";
+  cargoHash = "sha256-TlPzzZqjfKPE0D6FUSQKYkfdENzED+zNRYfQxepEBzk=";
 
   cargoBuildFlags = [
     "--package=deckcraft"
