@@ -1,30 +1,35 @@
-{ lib
-, fetchFromGitHub
-, rustPlatform
-, pkg-config
-, copyDesktopItems
-, makeDesktopItem
-, patchelf
-, libx11
-, libxcb
-, libGL
-, libxkbcommon
-, wayland
-, vulkan-loader
-, libxcursor
-, libxi
-, dbus
-, mesa
+{
+  lib,
+  fetchFromGitHub,
+  rustPlatform,
+  rustc,
+  pkg-config,
+  copyDesktopItems,
+  makeDesktopItem,
+  patchelf,
+  libx11,
+  libxcb,
+  libGL,
+  libxkbcommon,
+  nix-update-script,
+  wayland,
+  vulkan-loader,
+  libxcursor,
+  libxi,
+  dbus,
+  mesa,
+  versionCheckHook,
 }:
 
 rustPlatform.buildRustPackage (finalAttrs: {
   pname = "photocraft";
-  version = "0.5.0";
+  version = "0.7.0";
   __structuredAttrs = true;
 
-  # v0.5.0 is released against this craft-fonts revision; newer revisions add non-Japanese
-  # families that its text-engine test suite does not expect to be registered yet.
-  craftFonts = fetchFromGitHub {
+  # Upstream releases build against this craft-fonts revision (release.yml CRAFT_FONTS_REF);
+  # newer revisions add non-Japanese families that the text-engine test suite does not expect
+  # to be registered yet.
+  craft-fonts = fetchFromGitHub {
     owner = "storytold";
     repo = "craft-fonts";
     rev = "abb83316d96aa59c1cf64784289e378fe9fa5695";
@@ -35,10 +40,10 @@ rustPlatform.buildRustPackage (finalAttrs: {
     owner = "storytold";
     repo = "photocraft";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-Ye8Fv4CPBUtqi1ZAJvXfpvyaXk7Ga9BAwl2nrsLEZWA=";
+    hash = "sha256-XyRDSkGAw1W9kF61nujHkgIR7TkTjrQbbcu+tSxWjXU=";
   };
 
-  cargoLock = { lockFile = "${finalAttrs.src}/Cargo.lock"; };
+  cargoHash = "sha256-kpNg04RP5XbtW2rMaXUmGIKRJIqJmi7fmTbs5qHTLto=";
 
   # Provides the software Vulkan driver (lavapipe) for the wgpu-based egui_kittest tests inside the
   # sandbox; upstream CI gets one from the runner image's mesa. A slim vulkanDrivers-only override
@@ -74,25 +79,42 @@ rustPlatform.buildRustPackage (finalAttrs: {
   '';
 
   env = {
-    CRAFT_FONTS_DIR = "${finalAttrs.craftFonts}";
+    CRAFT_FONTS_DIR = "${finalAttrs.craft-fonts}";
     CRAFT_FONTS_REQUIRED = "1";
   };
 
-  cargoBuildFlags = [ "-p" "photocraft" "-p" "photocraft-cli" ];
+  cargoBuildFlags = [
+    "-p"
+    "photocraft"
+    "-p"
+    "photocraft-cli"
+  ];
 
   postInstall = ''
     install -d $out/share/icons
-    cp -r assets/app-icon/hicolor/* $out/share/icons/
+    cp -r assets/app-icon/hicolor $out/share/icons
 
     docdir=$out/share/doc/${finalAttrs.pname}-${finalAttrs.version}
     install -d $docdir
-    for lic in ${finalAttrs.craftFonts}/fonts/*/OFL.txt; do
+    for lic in ${finalAttrs.craft-fonts}/fonts/*/OFL.txt; do
       install -Dm644 "$lic" "$docdir/OFL-$(basename "$(dirname "$lic")").txt"
     done
   '';
 
   postFixup = ''
-    patchelf --set-rpath "${lib.makeLibraryPath [ libx11 libxcb libGL libxkbcommon wayland vulkan-loader libxcursor libxi dbus ]}" \
+    patchelf --set-rpath "${
+      lib.makeLibraryPath [
+        libx11
+        libxcb
+        libGL
+        libxkbcommon
+        wayland
+        vulkan-loader
+        libxcursor
+        libxi
+        dbus
+      ]
+    }" \
       $out/bin/photocraft
 
     # The app's own startup lib probe only searches ldconfig/system dirs (not the binary's
@@ -133,7 +155,12 @@ rustPlatform.buildRustPackage (finalAttrs: {
       "image/avif"
       "image/qoi"
     ];
-    categories = [ "Graphics" "2DGraphics" "RasterGraphics" "Photography" ];
+    categories = [
+      "Graphics"
+      "2DGraphics"
+      "RasterGraphics"
+      "Photography"
+    ];
     startupNotify = true;
     startupWMClass = "photocraft";
     keywords = [
@@ -150,9 +177,15 @@ rustPlatform.buildRustPackage (finalAttrs: {
 
   desktopItems = [ finalAttrs.desktopItem ];
 
+  nativeInstallCheckInputs = [ versionCheckHook ];
+  doInstallCheck = true;
+
+  passthru.updateScript = nix-update-script { };
+
   meta = {
     description = "PhotoCraft desktop app";
     homepage = "https://github.com/storytold/photocraft";
+    changelog = "https://github.com/storytold/photocraft/releases/tag/${finalAttrs.src.tag}";
     license = lib.licenses.OR [
       lib.licenses.asl20
       lib.licenses.mit
@@ -161,5 +194,6 @@ rustPlatform.buildRustPackage (finalAttrs: {
     maintainers = with lib.maintainers; [
       gaelj
     ];
+    platforms = rustc.meta.platforms;
   };
 })
