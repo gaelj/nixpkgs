@@ -25,17 +25,17 @@
 
 rustPlatform.buildRustPackage (finalAttrs: {
   pname = "pdfcraft";
-  version = "0.4.0";
+  version = "0.6.0";
   __structuredAttrs = true;
 
   src = fetchFromGitHub {
     owner = "storytold";
     repo = "pdfcraft";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-Fkzo9qb9obrXa1X4klio+gRgM2UZIO8QwfI0/xSYwmo=";
+    hash = "sha256-FddJfmHevL1vwDufjFReWBlocDYZihYhiFLgMZBhiPE=";
   };
 
-  cargoLock = { lockFile = "${finalAttrs.src}/Cargo.lock"; };
+  cargoHash = "sha256-Sq2DWsBHzR/kTbiDjCcLVqLd66MF6dzUl/MtaU1EK/g=";
 
   # `rten-gemm` has AVX-512 VNNI int8 kernels that call `_mm512_dpbusd_epi32`. With the
   # current toolchain, stdarch's signature for that intrinsic mismatches LLVM's
@@ -44,7 +44,7 @@ rustPlatform.buildRustPackage (finalAttrs: {
   # become dead code, so they are never codegen'd and runtime dispatch falls back to the
   # equivalent AVX2 / scalar kernels.
   postPatch = ''
-    rtenGemmi8dot="$cargoDepsCopy/rten-gemm-0.26.0/src/i8dot.rs"
+    rtenGemmi8dot="$cargoDepsCopy/source-registry-0/rten-gemm-0.26.0/src/i8dot.rs"
 
     sed -i '/if let Some(isa) = x86_64::Avx512VnniIsa::new() {$/,+2d' "$rtenGemmi8dot"
     if grep -qF 'dispatch_avx512_vnni(isa, self)' "$rtenGemmi8dot"; then
@@ -102,11 +102,16 @@ rustPlatform.buildRustPackage (finalAttrs: {
     CRAFT_FONTS_REQUIRED = "1";
   };
 
-  cargoBuildFlags = [ "-p" "pdfcraft" "-p" "pdfcraft-cli" ];
+  cargoBuildFlags = [
+    "-p"
+    "pdfcraft"
+    "-p"
+    "pdfcraft-cli"
+  ];
 
   postInstall = ''
     install -d $out/share/icons
-    cp -r assets/app-icon/hicolor/* $out/share/icons/
+    cp -r assets/app-icon/hicolor $out/share/icons
 
     docdir=$out/share/doc/${finalAttrs.pname}-${finalAttrs.version}
     install -d $docdir
@@ -116,7 +121,19 @@ rustPlatform.buildRustPackage (finalAttrs: {
   '';
 
   postFixup = ''
-    patchelf --set-rpath "${lib.makeLibraryPath [ libx11 libxcb libGL libxkbcommon wayland vulkan-loader libxcursor libxi dbus ]}" \
+    patchelf --set-rpath "${
+      lib.makeLibraryPath [
+        libx11
+        libxcb
+        libGL
+        libxkbcommon
+        wayland
+        vulkan-loader
+        libxcursor
+        libxi
+        dbus
+      ]
+    }" \
       $out/bin/pdfcraft
   '';
 
@@ -131,7 +148,11 @@ rustPlatform.buildRustPackage (finalAttrs: {
     mimeTypes = [
       "application/pdf"
     ];
-    categories = [ "Office" "Viewer" "Graphics" ];
+    categories = [
+      "Office"
+      "Viewer"
+      "Graphics"
+    ];
     startupNotify = true;
     startupWMClass = "pdfcraft";
     keywords = [
@@ -148,6 +169,11 @@ rustPlatform.buildRustPackage (finalAttrs: {
 
   desktopItems = [ finalAttrs.desktopItem ];
 
+  nativeInstallCheckInputs = [ versionCheckHook ];
+  doInstallCheck = true;
+
+  passthru.updateScript = nix-update-script { };
+
   meta = {
     description = "PdfCraft desktop app";
     homepage = "https://github.com/storytold/pdfcraft";
@@ -160,5 +186,6 @@ rustPlatform.buildRustPackage (finalAttrs: {
     maintainers = with lib.maintainers; [
       gaelj
     ];
+    platforms = rustc.meta.platforms;
   };
 })
