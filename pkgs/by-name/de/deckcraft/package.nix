@@ -24,17 +24,17 @@
 
 rustPlatform.buildRustPackage (finalAttrs: {
   pname = "deckcraft";
-  version = "0.3.0";
+  version = "0.5.0";
   __structuredAttrs = true;
 
   src = fetchFromGitHub {
     owner = "storytold";
     repo = "deckcraft";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-mJTA41rZMHwrK8o/Yw2TcGfWSfz7MreX9SliFVAoDMc=";
+    hash = "sha256-B+kuyp/5j/yKqaQgood7VL4Vhf0gnOSTqT43VYa1LwE=";
   };
 
-  cargoLock = { lockFile = "${finalAttrs.src}/Cargo.lock"; };
+  cargoHash = "sha256-5LjT/3EfDPguMPF4/TD6rpIefLk8+sIN0LD6Am3oDTQ=";
 
   nativeBuildInputs = [
     pkg-config
@@ -61,11 +61,16 @@ rustPlatform.buildRustPackage (finalAttrs: {
     CRAFT_FONTS_REQUIRED = "1";
   };
 
-  cargoBuildFlags = [ "-p" "deckcraft" "-p" "deckcraft-cli" ];
+  cargoBuildFlags = [
+    "-p"
+    "deckcraft"
+    "-p"
+    "deckcraft-cli"
+  ];
 
   postInstall = ''
     install -d $out/share/icons
-    cp -r assets/app-icon/hicolor/* $out/share/icons/
+    cp -r assets/app-icon/hicolor $out/share/icons
 
     docdir=$out/share/doc/${finalAttrs.pname}-${finalAttrs.version}
     install -d $docdir
@@ -75,7 +80,20 @@ rustPlatform.buildRustPackage (finalAttrs: {
   '';
 
   postFixup = ''
-    patchelf --set-rpath "${lib.makeLibraryPath [ alsa-lib libx11 libxcb libGL libxkbcommon wayland libxcursor libxi vulkan-loader dbus ]}" \
+    patchelf --set-rpath "${
+      lib.makeLibraryPath [
+        alsa-lib
+        libx11
+        libxcb
+        libGL
+        libxkbcommon
+        wayland
+        libxcursor
+        libxi
+        vulkan-loader
+        dbus
+      ]
+    }" \
       $out/bin/deckcraft
   '';
 
@@ -93,7 +111,10 @@ rustPlatform.buildRustPackage (finalAttrs: {
       "application/vnd.openxmlformats-officedocument.presentationml.template"
       "application/vnd.openxmlformats-officedocument.presentationml.slideshow"
     ];
-    categories = [ "Office" "Presentation" ];
+    categories = [
+      "Office"
+      "Presentation"
+    ];
     startupNotify = true;
     startupWMClass = "ai.storyteller.deckcraft";
     keywords = [
@@ -109,6 +130,11 @@ rustPlatform.buildRustPackage (finalAttrs: {
 
   desktopItems = [ finalAttrs.desktopItem ];
 
+  nativeInstallCheckInputs = [ versionCheckHook ];
+  doInstallCheck = true;
+
+  passthru.updateScript = nix-update-script { };
+
   meta = {
     description = "DeckCraft desktop app";
     homepage = "https://github.com/storytold/deckcraft";
@@ -121,5 +147,6 @@ rustPlatform.buildRustPackage (finalAttrs: {
     maintainers = with lib.maintainers; [
       gaelj
     ];
+    platforms = rustc.meta.platforms;
   };
 })
