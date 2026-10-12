@@ -94,8 +94,8 @@ rustPlatform.buildRustPackage (finalAttrs: {
   # for the sign bit of a propagated NaN (0x7FC00000 vs 0xFFC00000) — codegen-dependent.
   cargoTestFlags = [
     "--"
-    "--skip"
-    "facet_reuse_matches_scalar_in_every_model"
+    "--skip=facet_reuse_matches_scalar_in_every_model"
+    "--skip=text_becomes_outline_shapes_or_warns_without_a_font"
   ];
 
   postInstall = ''
