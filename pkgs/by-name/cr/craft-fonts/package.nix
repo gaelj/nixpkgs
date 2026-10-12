@@ -1,18 +1,19 @@
-{ lib
-, stdenvNoCC
-, fetchFromGitHub
+{
+  lib,
+  stdenvNoCC,
+  fetchFromGitHub,
 }:
 
 stdenvNoCC.mkDerivation {
   pname = "craft-fonts";
-  version = "0.1.0";
+  version = "0-unstable-2026-10-11";
   __structuredAttrs = true;
 
   src = fetchFromGitHub {
     owner = "storytold";
     repo = "craft-fonts";
-    rev = "8dcdacd5153e64560d109541a47d806f26f048c0";
-    hash = "sha256-4E9OrthE5z39xFXpvpwn4Fn6RH3wX2sF56rZZejZT+I=";
+    rev = "3d9ab3a132ed0eff457e424226a435a901da30d3";
+    hash = "sha256-mNnDzBcOp1X10dzmiW0iBAkb74QjuzMO4slWudxXCTE=";
   };
 
   installPhase = ''
