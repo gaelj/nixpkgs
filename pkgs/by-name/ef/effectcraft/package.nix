@@ -68,10 +68,24 @@ rustPlatform.buildRustPackage (finalAttrs: {
   # do not force one here: the only adapter a build sandbox can provide is lavapipe, whose software
   # path returns `None` (CPU fallback) for many effect families, which those tests score as a
   # failure. Leaving the adapter absent keeps the suite green and matches upstream CI.
-  # One egui_kittest test (`on_draw_concave_fills_and_images_render`) unconditionally builds a
-  # `.wgpu()` harness (not `#[ignore]`d at this version) and cannot run without an adapter.
-
-  cargoTestFlags = [ "--" "--skip" "on_draw_concave_fills_and_images_render" ];
+  # A handful of egui_kittest tests cannot cope with the missing adapter: one builds a `.wgpu()`
+  # harness unconditionally (not `#[ignore]`d at this version), and four ui_viewer tests lazily
+  # create a wgpu RenderState when rendering viewer content mid-drag, aborting with "No adapter
+  # found" (egui_kittest 0.36.2). A full `--no-fail-fast` pass over the whole workspace confirmed
+  # these five are the only adapter-dependent tests at this version.
+  cargoTestFlags = [
+    "--"
+    "--skip"
+    "on_draw_concave_fills_and_images_render"
+    "--skip"
+    "a_layer_drag_moves_the_picture_while_the_button_is_down"
+    "--skip"
+    "shape_drag_ghost_normalises_the_same_way_as_the_release"
+    "--skip"
+    "shape_drag_ghost_shows_the_tools_own_shape_while_dragging"
+    "--skip"
+    "shape_drag_ghost_shows_where_the_shape_will_land"
+  ];
 
   # stdenv points TMPDIR at /build/<drv>, but footage_check::tests::relative_footage_is_found_next_to_the_project
   # sorts the paths it stores against a literal "/nonexistent/..." entry and assumes its temp_dir()-based path
