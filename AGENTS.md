@@ -12,10 +12,6 @@ shard tree, wired up by `pkgs/topplevel/by-name-overlay.nix` via
 `self.callPackage file {}`. Consequences:
 
 - The top-level attribute name is exactly the directory basename.
-- There is NO kebab-to-camel aliasing: a hyphenated sibling such as
-  `craft-fonts` is only reachable through its explicit all-packages entry
-  (e.g. `craftFonts = callPackage ../by-name/cr/craft-fonts/package.nix { };`).
-  Add the alias line if another package consumes it via callPackage args.
 - Any top-level attr is a valid callPackage argument, so prefer referencing
   sibling packages as bare args instead of re-fetching.
 
