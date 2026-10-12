@@ -73,6 +73,14 @@ rustPlatform.buildRustPackage (finalAttrs: {
 
   cargoTestFlags = [ "--" "--skip" "on_draw_concave_fills_and_images_render" ];
 
+  # stdenv points TMPDIR at /build/<drv>, but footage_check::tests::relative_footage_is_found_next_to_the_project
+  # sorts the paths it stores against a literal "/nonexistent/..." entry and assumes its temp_dir()-based path
+  # sorts after that. "/build/..." sorts before "/nonexistent/...", so restore /tmp (writable, disk-backed in
+  # the sandbox) to keep the assertion's ordering assumption true.
+  preCheck = ''
+    export TMPDIR=/tmp
+  '';
+
   postInstall = ''
     install -d $out/share/icons
     cp -r assets/app-icon/hicolor $out/share/icons
