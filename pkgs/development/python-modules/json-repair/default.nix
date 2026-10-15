@@ -4,6 +4,7 @@
   fetchFromGitHub,
   jsonschema,
   setuptools,
+  pydantic,
   pytestCheckHook,
 }:
 
@@ -26,7 +27,10 @@ buildPythonPackage (finalAttrs: {
     jsonschema
   ];
 
-  optionalDependencies = [ jsonschema ];
+  optional-dependencies.schema = [
+    jsonschema
+    pydantic
+  ];
 
   disabledTestPaths = [
     # Disable benchmark tests
