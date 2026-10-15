@@ -10,14 +10,16 @@
 
 python3Packages.buildPythonApplication (finalAttrs: {
   pname = "oterm";
-  version = "0.25.0";
+  version = "0.26.0";
   pyproject = true;
+
+  __structuredAttrs = true;
 
   src = fetchFromGitHub {
     owner = "ggozad";
     repo = "oterm";
     tag = finalAttrs.version;
-    hash = "sha256-3s/nNXLkK0i93Pw/bbg/tsUqA0F7TbxHIBOopDPuQ60=";
+    hash = "sha256-WlUgwOpXX4/AkCzWY+NYMSNVIXZyfpOEaXKYuXpBSJg=";
   };
 
   pythonRelaxDeps = [
@@ -39,7 +41,7 @@ python3Packages.buildPythonApplication (finalAttrs: {
 
   build-system = with python3Packages; [ hatchling ];
 
-  dependencies = with python3Packages; [
+  dependencies = lib.flatten (with python3Packages; [
     aiosql
     aiosqlite
     ollama
@@ -47,42 +49,28 @@ python3Packages.buildPythonApplication (finalAttrs: {
     pillow
     pydantic
     pydantic-ai-harness
-    # pydantic-ai-slim and its extras, as required by oterm's pyproject.toml
     pydantic-ai-slim
-    anthropic
-    boto3
-    cohere
-    ddgs
-    # fastmcp-slim[client], imported by oterm.tools.mcp (client + keyring/filetree/memory backends)
-    authlib
-    exceptiongroup
-    fastmcp-slim
-    mcp
-    py-key-value-aio
-    starlette
-    aiofile
-    anyio
-    cachetools
-    keyring
-    google-genai
-    groq
-    huggingface-hub
-    logfire
-    markdownify
-    mistralai
-    openai
-    opentelemetry-instrumentation-httpx
     python-dotenv
     python-multipart
-    tiktoken
     textual
     textual-image
     textual-speedups
     textualeffects
     typer
-  ]
-  # extra: pydantic-ai-slim[huggingface] (marker-limited to these architectures)
-  ++ lib.optionals (stdenv.hostPlatform.isx86_64 || stdenv.hostPlatform.isAarch64) [ hf-xet ];
+    # pydantic-ai-slim and its extras, as required by oterm's pyproject.toml
+    pydantic-ai-slim.optional-dependencies.anthropic
+    pydantic-ai-slim.optional-dependencies.bedrock
+    pydantic-ai-slim.optional-dependencies.cohere
+    pydantic-ai-slim.optional-dependencies.duckduckgo
+    pydantic-ai-slim.optional-dependencies.google
+    pydantic-ai-slim.optional-dependencies.groq
+    pydantic-ai-slim.optional-dependencies.huggingface
+    pydantic-ai-slim.optional-dependencies.logfire
+    pydantic-ai-slim.optional-dependencies.mcp
+    pydantic-ai-slim.optional-dependencies.mistral
+    pydantic-ai-slim.optional-dependencies.openai
+    pydantic-ai-slim.optional-dependencies.web-fetch
+  ]);
 
   pythonImportsCheck = [ "oterm" ];
 
@@ -103,12 +91,12 @@ python3Packages.buildPythonApplication (finalAttrs: {
 
   postInstall = lib.optionalString (stdenv.buildPlatform.canExecute stdenv.hostPlatform) ''
     installShellCompletion --cmd oterm \
-      --zsh <($out/bin/oterm --show-completion)
+      --bash <(_OTERM_COMPLETE=source_bash $out/bin/oterm) \
+      --fish <(_OTERM_COMPLETE=source_fish $out/bin/oterm) \
+      --zsh  <(_OTERM_COMPLETE=source_zsh  $out/bin/oterm)
   '';
 
-  passthru = {
-    updateScript = nix-update-script { };
-  };
+  passthru.updateScript = nix-update-script { };
 
   meta = {
     description = "Text-based terminal client for Ollama";
