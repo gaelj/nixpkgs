@@ -28,7 +28,6 @@ buildGo127Module (finalAttrs: {
     "kubeswap"
     "wol" # wake on lan proxy
     "vllm_wrapper" # helper for using `vllm` with `--enable-sleep-mode`
-    "kubeswap" # manages inference backends in a Kubernetes namespace
     "utils"
   ];
 
