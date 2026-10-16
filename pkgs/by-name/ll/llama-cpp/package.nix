@@ -259,6 +259,8 @@ effectiveStdenv.mkDerivation (finalAttrs: {
     "test-arg-parser"
     "test-thread-safety"
     "test-llama-context-model"
+    "test-state-restore-fragmented"
+    "test-llama-context"
   ]
   # icpx DAZ/FTZ makes nlohmann treat 5e-324 as 0 and pass 0.0 to Python.
   ++ optionals syclSupport [
