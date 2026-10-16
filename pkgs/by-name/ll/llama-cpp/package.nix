@@ -261,6 +261,8 @@ effectiveStdenv.mkDerivation (finalAttrs: {
     "test-llama-context-model"
     # Tests convert_hf_to_gguf, which is not installed, and needs torch.
     "test-conversion-fp8"
+    "test-state-restore-fragmented"
+    "test-llama-context"
   ]
   # icpx DAZ/FTZ makes nlohmann treat 5e-324 as 0 and pass 0.0 to Python.
   ++ optionals syclSupport [
