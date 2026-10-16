@@ -1,41 +1,48 @@
-{
-  lib,
-  fetchFromGitHub,
-  rustPlatform,
-  rustc,
-  pkg-config,
-  copyDesktopItems,
-  makeDesktopItem,
-  patchelf,
-  libx11,
-  libxcb,
-  libGL,
-  libxkbcommon,
-  nix-update-script,
-  wayland,
-  vulkan-loader,
-  libxcursor,
-  libxi,
-  libxinerama,
-  libxt,
-  dbus,
-  craft-fonts,
-  versionCheckHook,
+{ lib
+, fetchFromGitHub
+, rustPlatform
+, rustc
+, pkg-config
+, copyDesktopItems
+, makeDesktopItem
+, patchelf
+, libx11
+, libxcb
+, libGL
+, libxkbcommon
+, nix-update-script
+, wayland
+, vulkan-loader
+, libxcursor
+, libxi
+, libxinerama
+, libxt
+, dbus
+, versionCheckHook
+,
 }:
 
 rustPlatform.buildRustPackage (finalAttrs: {
   pname = "lightcraft";
-  version = "0.6.0";
+  version = "0.8.0";
   __structuredAttrs = true;
+
+  # Upstream releases build against this craft-fonts revision (release.yml CRAFT_FONTS_REF).
+  craft-fonts = fetchFromGitHub {
+    owner = "storytold";
+    repo = "craft-fonts";
+    rev = "8dcdacd5153e64560d109541a47d806f26f048c0";
+    hash = "sha256-4E9OrthE5z39xFXpvpwn4Fn6RH3wX2sF56rZZejZT+I=";
+  };
 
   src = fetchFromGitHub {
     owner = "storytold";
     repo = "lightcraft";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-hPRTJQql7TzmqZgkmDU1W3/IQMLQD/XzHNi6Lyv4XE0=";
+    hash = "sha256-a84KDuTcYNsf5Te4U2PYOp2P1VwK0sGoJ0qIxaRjR80=";
   };
 
-  cargoHash = "sha256-UyQP8+z8gd5g0uoeGK6C8O0uw318vJ1l/IZ7ShTdcek=";
+  cargoHash = "sha256-i+y4+1xTg9F1fxO0gdFU/ZxTRWsB+NHfOJKdNNWGtqs=";
 
   nativeBuildInputs = [
     pkg-config
@@ -60,7 +67,7 @@ rustPlatform.buildRustPackage (finalAttrs: {
   ];
 
   env = {
-    CRAFT_FONTS_DIR = "${craft-fonts}";
+    CRAFT_FONTS_DIR = "${finalAttrs.craft-fonts}";
     CRAFT_FONTS_REQUIRED = "1";
   };
 
@@ -85,7 +92,7 @@ rustPlatform.buildRustPackage (finalAttrs: {
 
     docdir=$out/share/doc/${finalAttrs.pname}-${finalAttrs.version}
     install -d $docdir
-    for lic in ${craft-fonts}/fonts/*/OFL.txt; do
+    for lic in ${finalAttrs.craft-fonts}/fonts/*/OFL.txt; do
       install -Dm644 "$lic" "$docdir/OFL-$(basename "$(dirname "$lic")").txt"
     done
   '';

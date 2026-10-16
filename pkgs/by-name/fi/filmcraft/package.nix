@@ -1,41 +1,48 @@
-{
-  lib,
-  fetchFromGitHub,
-  rustPlatform,
-  rustc,
-  pkg-config,
-  copyDesktopItems,
-  makeDesktopItem,
-  patchelf,
-  alsa-lib,
-  libx11,
-  libxcb,
-  libGL,
-  libxkbcommon,
-  nix-update-script,
-  wayland,
-  vulkan-loader,
-  libxcursor,
-  libxi,
-  dbus,
-  mesa,
-  craft-fonts,
-  versionCheckHook,
+{ lib
+, fetchFromGitHub
+, rustPlatform
+, rustc
+, pkg-config
+, copyDesktopItems
+, makeDesktopItem
+, patchelf
+, alsa-lib
+, libx11
+, libxcb
+, libGL
+, libxkbcommon
+, nix-update-script
+, wayland
+, vulkan-loader
+, libxcursor
+, libxi
+, dbus
+, mesa
+, versionCheckHook
+,
 }:
 
 rustPlatform.buildRustPackage (finalAttrs: {
   pname = "filmcraft";
-  version = "0.6.0";
+  version = "0.8.0";
   __structuredAttrs = true;
+
+  # Upstream releases build against this craft-fonts revision (release.yml CRAFT_FONTS_REF).
+  craft-fonts = fetchFromGitHub {
+    owner = "storytold";
+    repo = "craft-fonts";
+    rev = "abb83316d96aa59c1cf64784289e378fe9fa5695";
+    hash = "sha256-e+6HpOYoAFTh6mNfGBBw2njnBzcE8W8+Jybv1+dKOCA=";
+  };
 
   src = fetchFromGitHub {
     owner = "storytold";
     repo = "filmcraft";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-aAKyxB3r3y1IEYyMjD2CJgD118kk8OdWeVCnvM5+v+0=";
+    hash = "sha256-CxmUZ0felNb371LiQy1bNOfc2V/16DixvCkzyuFRhMM=";
   };
 
-  cargoHash = "sha256-oJadymZHT/paCUvI9iXlUlST4SckUpdH6r5PCJkXbXI=";
+  cargoHash = "sha256-xjyTr6HPvaO6tndE+1Icgs6HCx96I5a2zQfAYpqPE7U=";
 
   # Provides the software Vulkan driver (lavapipe) for the wgpu-based egui_kittest tests inside the
   # sandbox; upstream CI gets one from the runner image's mesa. A slim vulkanDrivers-only override
@@ -72,7 +79,7 @@ rustPlatform.buildRustPackage (finalAttrs: {
   '';
 
   env = {
-    CRAFT_FONTS_DIR = "${craft-fonts}";
+    CRAFT_FONTS_DIR = "${finalAttrs.craft-fonts}";
     CRAFT_FONTS_REQUIRED = "1";
   };
 
@@ -102,7 +109,7 @@ rustPlatform.buildRustPackage (finalAttrs: {
 
     docdir=$out/share/doc/${finalAttrs.pname}-${finalAttrs.version}
     install -d $docdir
-    for lic in ${craft-fonts}/fonts/*/OFL.txt; do
+    for lic in ${finalAttrs.craft-fonts}/fonts/*/OFL.txt; do
       install -Dm644 "$lic" "$docdir/OFL-$(basename "$(dirname "$lic")").txt"
     done
   '';

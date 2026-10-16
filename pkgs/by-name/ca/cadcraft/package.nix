@@ -18,17 +18,17 @@
 
 rustPlatform.buildRustPackage (finalAttrs: {
   pname = "cadcraft";
-  version = "0.5.0";
+  version = "0.7.0";
   __structuredAttrs = true;
 
   src = fetchFromGitHub {
     owner = "storytold";
     repo = "cadcraft";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-TD7qh64rwYZOymru3EoRuuBGJJRZ75xE1WJC+Mq8RhQ=";
+    hash = "sha256-/7mlDxYCeE6vKKJWghfMj4WtHbjPWfPnhb+HoHgA0q4=";
   };
 
-  cargoHash = "sha256-Y8bqSY/ok6gmH/V4C0AL0j4CDMxEIXkYdm/VBHuB4UI=";
+  cargoHash = "sha256-7/TxuM5jh6fncL0+pAT147GJuri/sD0xnN6lRxueD0E=";
 
   nativeBuildInputs = [
     pkg-config

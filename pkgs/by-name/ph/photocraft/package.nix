@@ -1,29 +1,29 @@
-{
-  lib,
-  fetchFromGitHub,
-  rustPlatform,
-  rustc,
-  pkg-config,
-  copyDesktopItems,
-  makeDesktopItem,
-  patchelf,
-  libx11,
-  libxcb,
-  libGL,
-  libxkbcommon,
-  nix-update-script,
-  wayland,
-  vulkan-loader,
-  libxcursor,
-  libxi,
-  dbus,
-  mesa,
-  versionCheckHook,
+{ lib
+, fetchFromGitHub
+, rustPlatform
+, rustc
+, pkg-config
+, copyDesktopItems
+, makeDesktopItem
+, patchelf
+, libx11
+, libxcb
+, libGL
+, libxkbcommon
+, nix-update-script
+, wayland
+, vulkan-loader
+, libxcursor
+, libxi
+, dbus
+, mesa
+, versionCheckHook
+,
 }:
 
 rustPlatform.buildRustPackage (finalAttrs: {
   pname = "photocraft";
-  version = "0.7.0";
+  version = "0.9.0";
   __structuredAttrs = true;
 
   # Upstream releases build against this craft-fonts revision (release.yml CRAFT_FONTS_REF);
@@ -40,10 +40,10 @@ rustPlatform.buildRustPackage (finalAttrs: {
     owner = "storytold";
     repo = "photocraft";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-XyRDSkGAw1W9kF61nujHkgIR7TkTjrQbbcu+tSxWjXU=";
+    hash = "sha256-muKVyGM/lG0Ffav5wk4SbinrPkoCzvBYmcpM/Vwp6bk=";
   };
 
-  cargoHash = "sha256-kpNg04RP5XbtW2rMaXUmGIKRJIqJmi7fmTbs5qHTLto=";
+  cargoHash = "sha256-PQZGEtDvB6qb2arHuxGfz7Z+Pr1mCF/MrMI2yUGoV74=";
 
   # Provides the software Vulkan driver (lavapipe) for the wgpu-based egui_kittest tests inside the
   # sandbox; upstream CI gets one from the runner image's mesa. A slim vulkanDrivers-only override

@@ -1,41 +1,41 @@
-{
-  lib,
-  fetchFromGitHub,
-  rustPlatform,
-  rustc,
-  pkg-config,
-  git,
-  copyDesktopItems,
-  makeDesktopItem,
-  patchelf,
-  libx11,
-  libxcb,
-  libGL,
-  libxkbcommon,
-  nix-update-script,
-  wayland,
-  vulkan-loader,
-  libxcursor,
-  libxi,
-  dbus,
-  mesa,
-  craft-fonts,
-  versionCheckHook,
+{ lib
+, fetchFromGitHub
+, rustPlatform
+, rustc
+, pkg-config
+, git
+, copyDesktopItems
+, makeDesktopItem
+, patchelf
+, libx11
+, libxcb
+, libGL
+, libxkbcommon
+, nix-update-script
+, wayland
+, vulkan-loader
+, libxcursor
+, libxi
+, dbus
+, mesa
+, craft-fonts
+, versionCheckHook
+,
 }:
 
 rustPlatform.buildRustPackage (finalAttrs: {
   pname = "pdfcraft";
-  version = "0.6.0";
+  version = "0.8.0";
   __structuredAttrs = true;
 
   src = fetchFromGitHub {
     owner = "storytold";
     repo = "pdfcraft";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-FddJfmHevL1vwDufjFReWBlocDYZihYhiFLgMZBhiPE=";
+    hash = "sha256-gPd3NSEaeBEP5m0zUHI92vrqPd0pQSItuF44ZHaTnco=";
   };
 
-  cargoHash = "sha256-Sq2DWsBHzR/kTbiDjCcLVqLd66MF6dzUl/MtaU1EK/g=";
+  cargoHash = "sha256-0YWdiM3E046i2t8lCHLEVYKC9pQnBXCFYMtG3aDxTZ0=";
 
   # `rten-gemm` has AVX-512 VNNI int8 kernels that call `_mm512_dpbusd_epi32`. With the
   # current toolchain, stdarch's signature for that intrinsic mismatches LLVM's

@@ -1,40 +1,47 @@
-{
-  lib,
-  fetchFromGitHub,
-  rustPlatform,
-  rustc,
-  pkg-config,
-  copyDesktopItems,
-  makeDesktopItem,
-  patchelf,
-  alsa-lib,
-  libx11,
-  libxcb,
-  libGL,
-  libxkbcommon,
-  nix-update-script,
-  wayland,
-  libxcursor,
-  libxi,
-  vulkan-loader,
-  dbus,
-  craft-fonts,
-  versionCheckHook,
+{ lib
+, fetchFromGitHub
+, rustPlatform
+, rustc
+, pkg-config
+, copyDesktopItems
+, makeDesktopItem
+, patchelf
+, alsa-lib
+, libx11
+, libxcb
+, libGL
+, libxkbcommon
+, nix-update-script
+, wayland
+, libxcursor
+, libxi
+, vulkan-loader
+, dbus
+, versionCheckHook
+,
 }:
 
 rustPlatform.buildRustPackage (finalAttrs: {
   pname = "deckcraft";
-  version = "0.5.0";
+  version = "0.7.0";
   __structuredAttrs = true;
+
+  # Upstream releases build against this craft-fonts revision (release.yml CRAFT_FONTS_REF).
+  craft-fonts = fetchFromGitHub {
+    owner = "storytold";
+    repo = "craft-fonts";
+    rev = "43913056ce82a3fdad0ef69f6b88d1dc922a8104";
+    hash = "sha256-u1fC5spekizPXnrK6uiKEZSr2SJOaBF4ffLDbKkywEY=";
+  };
 
   src = fetchFromGitHub {
     owner = "storytold";
     repo = "deckcraft";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-B+kuyp/5j/yKqaQgood7VL4Vhf0gnOSTqT43VYa1LwE=";
+    hash = "sha256-MEocLbrEyQ2X+YTxmbsqg69Eox/X7NIFySvuFDMbKV8=";
   };
 
-  cargoHash = "sha256-5LjT/3EfDPguMPF4/TD6rpIefLk8+sIN0LD6Am3oDTQ=";
+  cargoHash = "sha256-K02kLzGc/TxFAifSqqpgLWRyM/egWlasQxSjFSEk1Ms=";
 
   nativeBuildInputs = [
     pkg-config
@@ -57,7 +64,7 @@ rustPlatform.buildRustPackage (finalAttrs: {
   ];
 
   env = {
-    CRAFT_FONTS_DIR = "${craft-fonts}";
+    CRAFT_FONTS_DIR = "${finalAttrs.craft-fonts}";
     CRAFT_FONTS_REQUIRED = "1";
   };
 
@@ -74,7 +81,7 @@ rustPlatform.buildRustPackage (finalAttrs: {
 
     docdir=$out/share/doc/${finalAttrs.pname}-${finalAttrs.version}
     install -d $docdir
-    for lic in ${craft-fonts}/fonts/*/OFL.txt; do
+    for lic in ${finalAttrs.craft-fonts}/fonts/*/OFL.txt; do
       install -Dm644 "$lic" "$docdir/OFL-$(basename "$(dirname "$lic")").txt"
     done
   '';
