@@ -168,9 +168,6 @@ buildGo127Module (finalAttrs: {
     mkdir -p "$vllm_wrapper/bin"
     mv "$GOPATH/bin/vllm-wrapper" "$vllm_wrapper/bin/"
 
-    mkdir -p "$kubeswap/bin"
-    mv "$GOPATH/bin/kubeswap" "$kubeswap/bin/"
-
     mkdir -p "$utils/bin"
     mv "$GOPATH/bin/"{fake-model,test-concurrency} "$utils/bin/"
 
