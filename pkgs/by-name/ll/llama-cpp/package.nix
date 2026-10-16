@@ -225,6 +225,10 @@ effectiveStdenv.mkDerivation (finalAttrs: {
     # Network needed.
     "test-tokenizers-ggml-vocabs"
     "test-download-model"
+    # Requires the model downloaded by test-download-model, a CTest fixture:
+    # it must be disabled along with the setup test, otherwise ctest pulls the
+    # excluded fixture back in and fails.
+    "test-llama-context-model"
     "test-arg-parser"
     "test-thread-safety"
     "test-state-restore-fragmented"
