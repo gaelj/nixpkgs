@@ -12,6 +12,7 @@
 , libxkbcommon
 , nix-update-script
 , wayland
+, mesa
 , libxcursor
 , libxi
 , vulkan-loader
@@ -42,6 +43,17 @@ rustPlatform.buildRustPackage (finalAttrs: {
 
   cargoHash = "sha256-D/CRhDoUbKvz/ev8NKRm2aDEyOA4NL5mdnx+O+iXHRI=";
 
+  # v0.7.0's test suite fails on this tag in two places, both fixed upstream right after the
+  # release (68cf67a6) but missing from it: is_word_2003_file in cmd/file.rs reads raw std::fs
+  # instead of the crate::io gateway (fails the engine lint test), and the first keystroke after
+  # a chrome click is dropped (fails ui-egui's ribbon/status-bar typing test).
+  patches = [ ./fix-io-gateway-lint.patch ];
+
+  # Software Vulkan driver (lavapipe) for the wgpu-based egui_kittest tests inside the sandbox;
+  # upstream CI gets one from the runner image's mesa. A slim vulkanDrivers-only override breaks
+  # this tree's multi-output mesa builder (no spirv2dxil output).
+  lavapipe = mesa;
+
   nativeBuildInputs = [
     pkg-config
     copyDesktopItems
@@ -58,8 +70,17 @@ rustPlatform.buildRustPackage (finalAttrs: {
     libxcursor
     libxi
     vulkan-loader
+    finalAttrs.lavapipe
     dbus
   ];
+
+  preCheck = ''
+    # The wgpu-based egui_kittest tests dlopen libvulkan.so.1 at runtime and need a Vulkan ICD;
+    # this tree's stdenv sets no LD_LIBRARY_PATH, so point them at the loader and lavapipe
+    # explicitly (upstream CI gets both from the runner image).
+    export VK_ICD_FILENAMES=$(ls ${finalAttrs.lavapipe}/share/vulkan/icd.d/*lvp*.json | tr '\n' ':')
+    export LD_LIBRARY_PATH="${vulkan-loader}/lib:${finalAttrs.lavapipe}/lib"
+  '';
 
   env = {
     CRAFT_FONTS_DIR = "${finalAttrs.craft-fonts}";

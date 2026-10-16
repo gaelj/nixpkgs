@@ -1,0 +1,53 @@
+--- a/crates/engine/src/io.rs
++++ b/crates/engine/src/io.rs
+@@ -406,6 +406,18 @@
+     std::fs::read(path).map_err(|e| format!("{path}: {e}"))
+ }
+ 
++/// The first `max` bytes of the file at `path` (fewer when it is shorter), inside the automation
++/// read root when there is one: enough to tell a file's format by its start.
++#[cfg(not(target_arch = "wasm32"))]
++pub fn read_file_head(path: &str, max: u64) -> Result<Vec<u8>, String> {
++    use std::io::Read;
++    crate::file_access::check_read(path)?;
++    let f = std::fs::File::open(path).map_err(|e| format!("{path}: {e}"))?;
++    let mut head = Vec::new();
++    f.take(max).read_to_end(&mut head).map_err(|e| format!("{path}: {e}"))?;
++    Ok(head)
++}
++
+ /// Write `bytes` to the file at `path`, inside the automation write root when there is one.
+ #[cfg(not(target_arch = "wasm32"))]
+ pub fn write_file(path: &str, bytes: &[u8]) -> Result<(), String> {
+--- a/crates/engine/src/cmd/file.rs
++++ b/crates/engine/src/cmd/file.rs
+@@ -257,16 +257,8 @@ fn save(s: &mut Session, v: &Value) -> CmdResult {
+ /// Does `path` hold a Word 2003 XML Document already (so a plain save keeps that format)?
+ #[cfg(not(target_arch = "wasm32"))]
+ fn is_word_2003_file(path: &std::path::Path) -> bool {
+-    use std::io::Read;
+-    if crate::file_access::check_read(&path.to_string_lossy()).is_err() {
+-        return false;
+-    }
+-    let Ok(f) = std::fs::File::open(path) else { return false };
+-    let mut head = Vec::new();
+     // The root element and its namespaces come first.
+-    if f.take(64 * 1024).read_to_end(&mut head).is_err() {
+-        return false;
+-    }
++    let Ok(head) = crate::io::read_file_head(&path.to_string_lossy(), 64 * 1024) else { return false };
+     wordcraft_docx::sniff_xml(&head) == wordcraft_docx::XmlKind::WordMl2003
+ }
+ 
+--- a/crates/ui-egui/src/lib.rs
++++ b/crates/ui-egui/src/lib.rs
+@@ -1646,6 +1646,9 @@ impl WordApp {
+         let on_chrome = ctx.layer_id_at(pos).is_none_or(|l| l.order == egui::Order::Background);
+         if on_chrome && ctx.memory(|m| m.focused().is_none()) && !egui::Popup::is_any_open(ctx) {
+             self.canvas.want_focus = true;
++            // The canvas reads keys before it takes focus back (#1107), so it counts as focused
++            // now: a keystroke in the very next frame reaches the page instead of being dropped.
++            self.canvas.focused = true;
+             ctx.request_repaint();
+         }
+     }
