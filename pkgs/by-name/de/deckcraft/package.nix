@@ -17,6 +17,7 @@
 , libxi
 , vulkan-loader
 , dbus
+, mesa
 , versionCheckHook
 ,
 }:
@@ -43,6 +44,11 @@ rustPlatform.buildRustPackage (finalAttrs: {
 
   cargoHash = "sha256-K02kLzGc/TxFAifSqqpgLWRyM/egWlasQxSjFSEk1Ms=";
 
+  # Provides the software Vulkan driver (lavapipe) for the wgpu-based egui_kittest tests inside the
+  # sandbox; upstream CI gets one from the runner image's mesa. A slim vulkanDrivers-only override
+  # breaks this tree's multi-output mesa builder (no spirv2dxil output).
+  lavapipe = mesa;
+
   nativeBuildInputs = [
     pkg-config
     copyDesktopItems
@@ -55,6 +61,7 @@ rustPlatform.buildRustPackage (finalAttrs: {
     libGL
     libxkbcommon
     wayland
+    finalAttrs.lavapipe
     # dlopened at runtime by winit/x11-dl, x11rb (dl-libxcb), xkbcommon-dl, wgpu and
     # g-desktop-portal; the fork's libx11 also ships libX11-xcb.so.1 in the same dir.
     libxcursor
@@ -62,6 +69,14 @@ rustPlatform.buildRustPackage (finalAttrs: {
     vulkan-loader
     dbus
   ];
+
+  preCheck = ''
+    # The wgpu-based egui_kittest test dlopens libvulkan.so.1 at runtime and picks the lavapipe ICD;
+    # this tree's stdenv sets no LD_LIBRARY_PATH, so point it at them explicitly (upstream CI gets
+    # both from the runner image).
+    export VK_ICD_FILENAMES=$(ls ${finalAttrs.lavapipe}/share/vulkan/icd.d/*lvp*.json | tr '\n' ':')
+    export LD_LIBRARY_PATH="${vulkan-loader}/lib:${finalAttrs.lavapipe}/lib"
+  '';
 
   env = {
     CRAFT_FONTS_DIR = "${finalAttrs.craft-fonts}";
