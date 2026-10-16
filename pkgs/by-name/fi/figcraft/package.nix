@@ -1,23 +1,23 @@
-{ lib
-, fetchFromGitHub
-, rustPlatform
-, rustc
-, pkg-config
-, copyDesktopItems
-, makeDesktopItem
-, patchelf
-, libx11
-, libxcb
-, libGL
-, libxkbcommon
-, nix-update-script
-, wayland
-, vulkan-loader
-, libxcursor
-, libxi
-, dbus
-, versionCheckHook
-,
+{
+  lib,
+  fetchFromGitHub,
+  rustPlatform,
+  rustc,
+  pkg-config,
+  copyDesktopItems,
+  makeDesktopItem,
+  patchelf,
+  libx11,
+  libxcb,
+  libGL,
+  libxkbcommon,
+  nix-update-script,
+  wayland,
+  vulkan-loader,
+  libxcursor,
+  libxi,
+  dbus,
+  versionCheckHook,
 }:
 
 rustPlatform.buildRustPackage (finalAttrs: {
