@@ -185,10 +185,16 @@ libraries".
 
 ## Formatting & commits
 
-- Format touched `package.nix` files with nixpkgs-fmt
-  (`(import /home/gaj/nixpkgs {}).nixpkgs-fmt`, currently 1.3.0). Do NOT run it
-  over `pkgs/top-level/all-packages.nix`: the committed baseline is not clean
-  under this fmt version and a full-file format churns ~700 unrelated lines —
+- **IMPORTANT: after ANY change — including rebase conflict resolutions — run
+  nixpkgs-fmt over every modified `package.nix` before continuing the rebase,
+  committing, or pushing.** Hand-resolved conflicts and auto-merged files both
+  count; never push an unformatted file. Get the binary with
+  `nix build --impure --expr '(import /home/gaj/nixpkgs {}).nixpkgs-fmt'
+  --print-out-paths` (currently 1.3.0) and run it per file:
+  `<bin>/bin/nixpkgs-fmt pkgs/by-name/.../package.nix`. It must report
+  `0 / N have been reformatted` (or stage the reformat). Do NOT run it over
+  `pkgs/top-level/all-packages.nix`: the committed baseline is not clean under
+  this fmt version and a full-file format churns ~700 unrelated lines —
   hand-apply your single entry in the surrounding style instead.
 - Commit style: one focused commit per package, subject `<name>: init at <version>`
   (or `<name>: <imperative change>`), body explaining non-obvious choices, and a
