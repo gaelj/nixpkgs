@@ -96,6 +96,9 @@ rustPlatform.buildRustPackage (finalAttrs: {
     "--"
     "--skip=facet_reuse_matches_scalar_in_every_model"
     "--skip=text_becomes_outline_shapes_or_warns_without_a_font"
+    # Its fake `lp` reads the spooled job from stdin via /bin/cat; NixOS builders have a minimal
+    # /bin (only sh), so the script reports success with an empty file and the %PDF check fails.
+    "--skip=spool_transport_streams_pdf_and_propagates_refusal"
   ];
 
   postInstall = ''
