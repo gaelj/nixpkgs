@@ -8,17 +8,17 @@
 
 rustPlatform.buildRustPackage (finalAttrs: {
   pname = "red-table";
-  version = "0.2.0";
+  version = "0.4.0";
   __structuredAttrs = true;
 
   src = fetchFromGitHub {
     owner = "volker-schukai";
     repo = "red-table";
     tag = finalAttrs.version;
-    hash = "sha256-wloknsKIfYd1DVJ81SWc3y6+AB0cZgr7MtcAek2TyfY=";
+    hash = "sha256-RvqWh8DVG9fnhbTjQy6Nx8ng1HoqxHXtGiMbQh7kdio=";
   };
 
-  cargoHash = "sha256-6ALtsU9/sRVy05GSKIp8f6rCsaaojHE6T/Hp2xuQ5ic=";
+  cargoHash = "sha256-qtnXTDRckQ/GPT/+SeBVb39QtZo9325XO500tb9IUBY=";
 
   nativeInstallCheckInputs = [ versionCheckHook ];
   doInstallCheck = true;
