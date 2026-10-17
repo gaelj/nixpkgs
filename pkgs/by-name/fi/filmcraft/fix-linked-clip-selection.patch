@@ -1,0 +1,332 @@
+diff --git a/crates/engine/src/commands.rs b/crates/engine/src/commands.rs
+index c99e5c64b..58d943b83 100644
+--- a/crates/engine/src/commands.rs
++++ b/crates/engine/src/commands.rs
+@@ -1646,7 +1646,8 @@ fn build() -> Vec<CommandSpec> {
+                 let caps = s.state.caption_selection.clone();
+                 return crate::captions::delete(s, &caps, false);
+             }
+-            let sel = with_links(s, &clips_p(s, p));
++            // An Alt selection is already exact; explicit targets keep the command's linked behavior.
++            let sel = if p.get("clips").is_some() || p.get("clip").is_some() { with_links(s, &clips_p(s, p)) } else { s.state.selection.clone() };
+             s.edit_sequence("Clear", |q, _, st| {
+                 edit::delete_items(q, &sel);
+                 st.selection.clear();
+@@ -1664,7 +1665,7 @@ fn build() -> Vec<CommandSpec> {
+                 let caps = s.state.caption_selection.clone();
+                 return crate::captions::delete(s, &caps, true);
+             }
+-            let sel = with_links(s, &clips_p(s, p));
++            let sel = if p.get("clips").is_some() || p.get("clip").is_some() { with_links(s, &clips_p(s, p)) } else { s.state.selection.clone() };
+             s.edit_sequence("Ripple Delete", |q, _, st| {
+                 let spans = edit::ripple_delete_items(q, &sel)?;
+                 if st.ripple_sequence_markers {
+@@ -2586,13 +2587,13 @@ fn build() -> Vec<CommandSpec> {
+                 None => place_one(s, p),
+             }
+         ),
+-        cmd!("timeline.select", "Select Clips", [], None, r#"{"clips":[id],"transitions":[id]?,"add":bool,"toggle":bool}"#, has_seq, |s, p| {
++        cmd!("timeline.select", "Select Clips", [], None, r#"{"clips":[id],"transitions":[id]?,"add":bool,"toggle":bool,"linked":bool?}"#, has_seq, |s, p| {
+             if let Some(ids) = p.get("transitions") {
+                 return select_transitions(s, ids, bool_p(p, "add").unwrap_or(false), bool_p(p, "toggle").unwrap_or(false));
+             }
+             let clips: Vec<ClipId> =
+                 p.get("clips").and_then(Value::as_array).map(|a| a.iter().filter_map(|v| v.as_u64().map(ClipId)).collect()).unwrap_or_default();
+-            let clips = with_links(s, &clips);
++            let clips = if bool_p(p, "linked").unwrap_or(true) { with_links(s, &clips) } else { clips };
+             // selecting clips leaves trim mode (Premiere: clip and edit point selections are exclusive)
+             s.state.edit_points.clear();
+             s.state.trim_shift = Default::default();
+diff --git a/crates/engine/src/individual_selection_tests.rs b/crates/engine/src/individual_selection_tests.rs
+new file mode 100644
+index 000000000..a6f940963
+--- /dev/null
++++ b/crates/engine/src/individual_selection_tests.rs
+@@ -0,0 +1,127 @@
++//! Individual linked-clip selection and deletion (#680, #1163).
++
++use crate::Session;
++use filmcraft_project::ClipId;
++use filmcraft_time::Tick;
++use serde_json::json;
++
++fn paired_sequence() -> (Session, [(ClipId, ClipId); 2]) {
++    let mut s = Session::default();
++    s.execute("file.openDemoProject", json!({})).unwrap();
++    s.execute("file.newSequence", json!({"name": "Individual selection", "video": 1, "audio": 1})).unwrap();
++    let item = s.project.items.values().find(|i| i.has_video() && i.has_audio() && i.as_media().is_some()).unwrap().id;
++    for frame in [0, 48] {
++        s.execute("timeline.place", json!({"item": item.0, "frame": frame, "duration": s.sequence_rate().tick_of(48).0})).unwrap();
++    }
++    let q = s.active_sequence().unwrap();
++    let pairs = [0, 1].map(|n| (q.video_tracks[0].items[n].id, q.audio_tracks[0].items[n].id));
++    (s, pairs)
++}
++
++#[test]
++fn linked_false_is_local_to_selection_and_respects_add_toggle() {
++    for audio in [false, true] {
++        let (mut s, [(video, sound), _]) = paired_sequence();
++        let (selected, partner) = if audio { (sound, video) } else { (video, sound) };
++        s.execute("timeline.select", json!({"clips": [selected.0]})).unwrap();
++        assert_eq!(s.state.selection.len(), 2, "ordinary selection includes the partner");
++        s.execute("timeline.select", json!({"clips": [selected.0], "linked": false})).unwrap();
++        assert_eq!(s.state.selection, vec![selected]);
++        assert!(s.state.linked_selection, "Alt selection does not change the global toggle");
++        s.execute("timeline.select", json!({"clips": [partner.0], "add": true, "linked": false})).unwrap();
++        assert_eq!(s.state.selection, vec![selected, partner]);
++        s.execute("timeline.select", json!({"clips": [selected.0], "toggle": true, "linked": false})).unwrap();
++        assert_eq!(s.state.selection, vec![partner]);
++        s.execute("sequence.linkedSelection", json!({"on": false})).unwrap();
++        for params in [json!({"clips": [selected.0]}), json!({"clips": [selected.0], "linked": true})] {
++            s.execute("timeline.select", params).unwrap();
++            assert_eq!(s.state.selection, vec![selected], "the global off toggle still applies");
++        }
++        s.execute("sequence.linkedSelection", json!({"on": true})).unwrap();
++        s.execute("timeline.select", json!({"clips": [selected.0]})).unwrap();
++        assert_eq!(s.state.selection.len(), 2);
++    }
++}
++
++#[test]
++fn implicit_clear_keeps_an_individually_selected_partner_and_undo() {
++    for audio in [false, true] {
++        let (mut s, [(video, sound), _]) = paired_sequence();
++        let (selected, partner) = if audio { (sound, video) } else { (video, sound) };
++        // Alt-click and the marquee preview can already hold a precise transient selection.
++        // Test deletion independently of the timeline.select parameter handling.
++        s.state.selection = vec![selected];
++        let before = s.project.clone();
++        s.execute("edit.clear", json!({})).unwrap();
++        let q = s.active_sequence().unwrap();
++        assert!(q.find_item(selected).is_none());
++        assert!(q.find_item(partner).is_some(), "the unselected linked partner stays");
++        assert!(s.state.linked_selection);
++        s.execute("edit.undo", json!({})).unwrap();
++        assert_eq!(*s.project, *before, "one undo restores the pair");
++    }
++}
++
++#[test]
++fn implicit_ripple_delete_keeps_the_partner_on_an_unsynced_track() {
++    for audio in [false, true] {
++        let (mut s, [(video, sound), (next_video, next_sound)]) = paired_sequence();
++        let (selected, partner, next, partner_next, partner_track) =
++            if audio { (sound, video, next_sound, next_video, "V1") } else { (video, sound, next_video, next_sound, "A1") };
++        s.execute("timeline.setTrack", json!({"track": partner_track, "syncLock": false})).unwrap();
++        s.state.selection = vec![selected];
++        let before = s.project.clone();
++        s.execute("edit.rippleDelete", json!({})).unwrap();
++        let q = s.active_sequence().unwrap();
++        q.check().unwrap();
++        assert!(q.find_item(selected).is_none());
++        assert_eq!(q.find_item(partner).unwrap().1.start, Tick::ZERO);
++        assert_eq!(q.find_item(next).unwrap().1.start, Tick::ZERO, "the selected track closes its gap");
++        assert_eq!(q.find_item(partner_next).unwrap().1.start, s.sequence_rate().tick_of(48), "the unsynced partner track stays put");
++        assert!(s.state.linked_selection);
++        let after = s.project.clone();
++        s.execute("edit.undo", json!({})).unwrap();
++        assert_eq!(*s.project, *before);
++        s.execute("edit.redo", json!({})).unwrap();
++        assert_eq!(*s.project, *after);
++    }
++}
++
++#[test]
++fn individual_ripple_sync_lock_conflict_is_atomic() {
++    for audio in [false, true] {
++        let (mut s, [(video, sound), _]) = paired_sequence();
++        let selected = if audio { sound } else { video };
++        s.state.selection = vec![selected];
++        let before = s.project.clone();
++        let history = (s.history.undo.len(), s.history.redo.len());
++        let error = s.execute("edit.rippleDelete", json!({})).unwrap_err();
++        assert!(error.to_string().to_lowercase().contains("sync"), "{error}");
++        assert_eq!(*s.project, *before, "a conflict must not delete either clip");
++        assert_eq!(s.state.selection, vec![selected]);
++        assert_eq!((s.history.undo.len(), s.history.redo.len()), history);
++        assert!(s.state.linked_selection);
++    }
++}
++
++#[test]
++fn explicit_clear_and_ripple_targets_keep_the_linked_selection_setting() {
++    for command in ["edit.clear", "edit.rippleDelete"] {
++        for key in ["clip", "clips"] {
++            for linked in [false, true] {
++                let (mut s, [(video, sound), (next, _)]) = paired_sequence();
++                for track in ["V1", "A1"] {
++                    s.execute("timeline.setTrack", json!({"track": track, "syncLock": false})).unwrap();
++                }
++                s.execute("sequence.linkedSelection", json!({"on": linked})).unwrap();
++                s.state.selection = vec![next];
++                let params = if key == "clip" { json!({"clip": video.0}) } else { json!({"clips": [video.0]}) };
++                s.execute(command, params).unwrap();
++                let q = s.active_sequence().unwrap();
++                assert!(q.find_item(video).is_none(), "{command} {key}");
++                assert_eq!(q.find_item(sound).is_none(), linked, "{command} {key}: explicit targets retain link expansion");
++                assert!(q.find_item(next).is_some(), "explicit targets do not delete the current selection");
++            }
++        }
++    }
++}
+diff --git a/crates/engine/src/lib.rs b/crates/engine/src/lib.rs
+index 778312b65..1e444ab27 100644
+--- a/crates/engine/src/lib.rs
++++ b/crates/engine/src/lib.rs
+@@ -1236,6 +1236,8 @@ mod gap_selection_tests;
+ #[cfg(test)]
+ mod image_sequence_tests;
+ #[cfg(test)]
++mod individual_selection_tests;
++#[cfg(test)]
+ mod interchange_auto_points_tests;
+ #[cfg(test)]
+ mod keyboard_tests;
+diff --git a/crates/ui-egui/src/panels/timeline.rs b/crates/ui-egui/src/panels/timeline.rs
+index edb5646e4..c4c369298 100644
+--- a/crates/ui-egui/src/panels/timeline.rs
++++ b/crates/ui-egui/src/panels/timeline.rs
+@@ -2448,14 +2448,10 @@ fn interact(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, layout: &
+                 // select (shift toggles; alt selects one side of a link)
+                 let sel = &app.session.state.selection;
+                 if mods.shift {
+-                    let _ = app.session.execute("timeline.select", json!({"clips": [clip.0], "toggle": true}));
+-                } else if !sel.contains(&clip) {
+-                    if mods.alt {
+-                        app.session.state.selection = vec![clip];
+-                        app.session.state.transition_selection.clear();
+-                    } else {
+-                        let _ = app.session.execute("timeline.select", json!({"clips": [clip.0]}));
+-                    }
++                    let _ = app.session.execute("timeline.select", json!({"clips": [clip.0], "toggle": true, "linked": !mods.alt}));
++                } else if !sel.contains(&clip) || (mods.alt && resp.clicked()) {
++                    // Alt-click isolates one side; Alt-drag keeps the selected group to copy.
++                    let _ = app.session.execute("timeline.select", json!({"clips": [clip.0], "linked": !mods.alt}));
+                 }
+                 if resp.drag_started() {
+                     let clips = app.session.state.selection.clone();
+diff --git a/crates/ui-egui/tests/graphics_notice_ui.rs b/crates/ui-egui/tests/graphics_notice_ui.rs
+index 272eecb3b..bd743ef17 100644
+--- a/crates/ui-egui/tests/graphics_notice_ui.rs
++++ b/crates/ui-egui/tests/graphics_notice_ui.rs
+@@ -117,7 +117,7 @@ fn the_notice_follows_the_interface_language() {
+     let mut d = Driver::new(Some(notice));
+     d.app().ui.language = filmcraft_ui_egui::i18n::Language::Es;
+     d.frames(3);
+-    assert_eq!(d.label("graphics.notice"), "Modo gráfico seguro: renderizado por software");
++    assert_eq!(d.label("graphics.notice"), "Modo gráfico seguro: procesamiento por software");
+     assert_eq!(d.label("graphics.notice.reset"), "Usar gráficos predeterminados");
+     filmcraft_ui_egui::i18n::set_current(filmcraft_ui_egui::i18n::Language::En);
+ }
+diff --git a/crates/ui-egui/tests/keyboard_ui.rs b/crates/ui-egui/tests/keyboard_ui.rs
+index 52ece3995..b1ea139a2 100644
+--- a/crates/ui-egui/tests/keyboard_ui.rs
++++ b/crates/ui-egui/tests/keyboard_ui.rs
+@@ -262,3 +262,53 @@ fn shift_delete_ripple_deletes_with_the_timeline_focused() {
+     let moved = after.iter().find(|i| i["clip"].as_u64() == Some(next)).map(|i| i["start"].as_i64().unwrap());
+     assert_eq!(moved, Some(start), "and closed the gap");
+ }
++
++#[test]
++fn alt_click_isolates_already_selected_linked_clip_before_delete() {
++    for audio in [false, true] {
++        let mut d = Driver::new();
++        d.focus("Timeline");
++        let q = d.app().session.active_sequence().unwrap();
++        let video = q.video_tracks[0].items[0].clone();
++        let sound = q.audio_tracks.iter().flat_map(|t| &t.items).find(|i| i.link == video.link).unwrap().clone();
++        let (selected, partner) = if audio { (sound.id, video.id) } else { (video.id, sound.id) };
++        d.exec("timeline.select", json!({"clips": [selected.0]}));
++        assert_eq!(d.app().session.state.selection.len(), 2);
++        let before = d.app().session.project.clone();
++        let r = d.app().auto.find(&format!("timeline.clip.{}", selected.0)).unwrap().rect;
++        d.ok("ui.click", json!({"x": r[0] + r[2] * 0.5, "y": r[1] + r[3] * 0.3, "modifiers": {"alt": true}}));
++        d.frames(3);
++        assert_eq!(d.app().session.state.selection, vec![selected], "Alt-click isolates the already-selected side");
++        assert!(d.app().session.state.linked_selection, "the global Linked Selection toggle stays on");
++        d.key("Delete");
++        let q = d.app().session.active_sequence().unwrap();
++        assert!(q.find_item(selected).is_none());
++        assert!(q.find_item(partner).is_some(), "Delete keeps the unselected linked partner");
++        d.key("Cmd+Z");
++        assert_eq!(*d.app().session.project, *before, "one undo restores both sides");
++    }
++}
++
++#[test]
++fn shift_alt_click_toggles_only_the_clicked_linked_side() {
++    for audio in [false, true] {
++        let mut d = Driver::new();
++        d.focus("Timeline");
++        let q = d.app().session.active_sequence().unwrap();
++        let video = q.video_tracks[0].items[0].clone();
++        let sound = q.audio_tracks.iter().flat_map(|t| &t.items).find(|i| i.link == video.link).unwrap().id;
++        let (clicked, partner) = if audio { (sound, video.id) } else { (video.id, sound) };
++        d.exec("timeline.select", json!({"clips": [clicked.0]}));
++        let before = d.app().session.project.clone();
++        let r = d.app().auto.find(&format!("timeline.clip.{}", clicked.0)).unwrap().rect;
++        let params = json!({"x": r[0] + r[2] * 0.5, "y": r[1] + r[3] * 0.3, "modifiers": {"alt": true, "shift": true}});
++        d.ok("ui.click", params.clone());
++        d.frames(3);
++        assert_eq!(d.app().session.state.selection, vec![partner], "Shift+Alt removes only the clicked side");
++        d.ok("ui.click", params);
++        d.frames(3);
++        assert_eq!(d.app().session.state.selection, vec![partner, clicked], "Shift+Alt adds that side back");
++        assert!(d.app().session.state.linked_selection);
++        assert_eq!(*d.app().session.project, *before, "selection does not edit the document");
++    }
++}
+diff --git a/crates/ui-egui/tests/timeline_option_drag_ui.rs b/crates/ui-egui/tests/timeline_option_drag_ui.rs
+index 01840f43d..801c2be35 100644
+--- a/crates/ui-egui/tests/timeline_option_drag_ui.rs
++++ b/crates/ui-egui/tests/timeline_option_drag_ui.rs
+@@ -90,3 +90,48 @@ fn option_drag_copies_a_clip_and_a_plain_drag_moves_it() {
+     assert_eq!(clip_count(&mut d), n);
+     assert!(d.harness.state().session.active_sequence().unwrap().find_item(v2.id).unwrap().1.start > v2.start, "moved");
+ }
++
++#[test]
++fn option_drag_preserves_an_already_selected_linked_group() {
++    for audio in [false, true] {
++        let mut d = Driver::demo();
++        d.exec("file.newSequence", json!({"name": "Group copy", "video": 1, "audio": 1}));
++        let session = &d.harness.state().session;
++        let item = session.project.items.values().find(|i| i.has_video() && i.has_audio() && i.as_media().is_some()).unwrap().id;
++        let duration = session.sequence_rate().tick_of(48).0;
++        for frame in [0, 72] {
++            d.exec("timeline.place", json!({"item": item.0, "frame": frame, "duration": duration}));
++        }
++        d.ok("ui.set", json!({"timeline": {"pps": 40.0, "scroll": 0.0}}));
++        d.frames(3);
++        let before = d.harness.state().session.project.clone();
++        let q = d.harness.state().session.active_sequence().unwrap().clone();
++        let videos: Vec<u64> = q.video_tracks[0].items.iter().map(|i| i.id.0).collect();
++        d.exec("timeline.select", json!({"clips": videos}));
++        let original_selection = d.harness.state().session.state.selection.clone();
++        assert_eq!(original_selection.len(), 4);
++        let grabbed = if audio { &q.audio_tracks[0].items[0] } else { &q.video_tracks[0].items[0] };
++        let r = d.rect(&format!("timeline.clip.{}", grabbed.id.0));
++        let (x, y) = (r[0] + r[2] * 0.5, r[1] + r[3] * 0.3);
++        d.ok("ui.drag", json!({"from": {"x": x, "y": y}, "to": {"x": x + 300.0, "y": y}, "steps": 12, "modifiers": {"alt": true}}));
++        d.frames(3);
++        let session = &d.harness.state().session;
++        let copied = &session.state.selection;
++        assert_eq!(copied.len(), 4, "Alt-drag copies the entire selected group");
++        assert!(copied.iter().all(|id| !original_selection.contains(id)));
++        assert!(session.state.linked_selection);
++        let after = session.active_sequence().unwrap();
++        after.check().unwrap();
++        assert_eq!(after.all_tracks().map(|t| t.items.len()).sum::<usize>(), 8);
++        let delta = copied.iter().map(|id| after.find_item(*id).unwrap().1.start).min().unwrap();
++        assert!(delta > q.duration(), "the copies land in empty time");
++        for (track, original) in q.all_tracks().flat_map(|t| t.items.iter().map(move |i| (t.id, i))) {
++            assert_eq!(after.find_item(original.id).unwrap().1, original, "the originals stay put");
++            let copy = after.track(track).unwrap().items.iter().find(|i| copied.contains(&i.id) && i.start == original.start + delta).unwrap();
++            assert_eq!((copy.item, copy.source_in, copy.duration), (original.item, original.source_in, original.duration));
++            assert_ne!(copy.link, original.link, "the copies have a new link group");
++        }
++        d.exec("edit.undo", json!({}));
++        assert_eq!(*d.harness.state().session.project, *before, "one undo removes the group copy");
++    }
++}

@@ -90,18 +90,32 @@ rustPlatform.buildRustPackage (finalAttrs: {
     "filmcraft-cli"
   ];
 
-  # Two test problems at the v0.4.0 tag:
+  # Test problems at the tag:
   # - shortcuts_tests::assign_reassigns_conflicts_and_undoes is deterministically broken:
   #   shortcuts.set (keepConflicts) returns every pre-existing conflict in the table (4, including
   #   unrelated Cmd+9/Cmd+Shift+M/Cmd+T bindings) instead of only the one the test expects.
   # - crates/frame pool tests assert on a process-global reused-frame counter, so running the
   #   binary's tests in parallel makes them race; serialize the run.
+  # - dev_icon::tests::desktop_file_matches_the_packaged_fields is deterministically red
+  #   upstream (still on main): the test derives its expectation from the packaged desktop file
+  #   (which carries MimeType=) while desktop_file_content never emits that field.
   cargoTestFlags = [
     "--"
     "--skip"
     "shortcuts_tests::assign_reassigns_conflicts_and_undoes"
+    "--skip"
+    "dev_icon::tests::desktop_file_matches_the_packaged_fields"
     "--test-threads=1"
   ];
+
+  # Backports upstream 39a8b65e33 (fix(timeline): preserve individual linked clip selections),
+  # committed seven hours after the v0.8.0 tag: at the tag the UI already sends "linked": false on
+  # Alt-marquee release, but the engine's timeline.select ignored it and edit.clear/rippleDelete
+  # re-expanded any selection through links, so individual (Alt) selections were broken — the
+  # tagged tree cannot pass its own alt_box/keyboard marquee tests. The commit also corrects a
+  # stale Spanish expectation in graphics_notice_ui. The tiff_ycbcr hunk of the same commit is not
+  # backported: it only matters when an ffmpeg oracle binary is present, which this closure lacks.
+  patches = [ ./fix-linked-clip-selection.patch ];
 
   postInstall = ''
     install -d $out/share/icons
