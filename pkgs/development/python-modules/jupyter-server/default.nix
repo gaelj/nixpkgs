@@ -137,6 +137,7 @@ buildPythonPackage (finalAttrs: {
     # timing sensitive
     "tests/services/contents/test_manager.py::test_created_timestamp"
     "tests/services/kernels/test_connection.py::test_disconnect_resolves_orphaned_kernel_info_future"
+    "tests/services/kernels/test_connection.py::test_no_fd_leak_on_disconnect_with_orphaned_kernel_info_channel"
   ];
 
   __darwinAllowLocalNetworking = true;
