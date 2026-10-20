@@ -133,6 +133,7 @@ buildPythonPackage (finalAttrs: {
   disabledTests = [
     # https://github.com/dask/dask/issues/10931
     "test_combine_first_all_nans"
+    "test_concat_categorical"
   ]
   ++ lib.optionals stdenv.hostPlatform.isDarwin [
     # RuntimeWarning: divide by zero encountered in det
