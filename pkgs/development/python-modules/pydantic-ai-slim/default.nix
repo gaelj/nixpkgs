@@ -38,6 +38,7 @@
   markdownify,
   mistralai,
   openai,
+  opentelemetry-instrumentation-httpx,
   prefect,
   prompt-toolkit,
   pyperclip,
@@ -112,26 +113,35 @@ buildPythonPackage (finalAttrs: {
     ];
     exa = [ exa-py ];
     google = [ google-genai ];
-    google-realtime = finalAttrs.passthru.optional-dependencies.google
-    ++ finalAttrs.passthru.optional-dependencies.realtime;
+    google-realtime =
+      finalAttrs.passthru.optional-dependencies.google
+      ++ finalAttrs.passthru.optional-dependencies.realtime;
     groq = [ groq ];
     huggingface = [
-      # hf-xet is x86_64/aarch64-only upstream
       huggingface-hub
     ]
-    ++ lib.optionals (stdenv.hostPlatform.isx86_64 || stdenv.hostPlatform.isAarch64) [ hf-xet ];
-    logfire = [ logfire ] ++ logfire.optional-dependencies.httpx;
+    ++ lib.optionals (stdenv.hostPlatform.isx86_64 || stdenv.hostPlatform.isAarch64) [
+      hf-xet
+    ];
+    logfire = [
+      logfire
+      opentelemetry-instrumentation-httpx
+    ]
+    ++ logfire.optional-dependencies.httpx;
     mcp = [ fastmcp-slim ] ++ fastmcp-slim.optional-dependencies.client;
     mcp-tasks = [
       # fastmcp-tasks is not packaged yet (requires FastMCP 4)
-    ];
+      fastmcp-slim
+    ]
+    ++ fastmcp-slim.optional-dependencies.client;
     mistral = [ mistralai ];
     openai = [
       openai
       tiktoken
     ];
-    openai-realtime = finalAttrs.passthru.optional-dependencies.openai
-    ++ finalAttrs.passthru.optional-dependencies.realtime;
+    openai-realtime =
+      finalAttrs.passthru.optional-dependencies.openai
+      ++ finalAttrs.passthru.optional-dependencies.realtime;
     openrouter = [ openai ];
     prefect = [ prefect ];
     realtime = [ websockets ];
@@ -164,9 +174,10 @@ buildPythonPackage (finalAttrs: {
     xai = [
       # xai-sdk is not packaged yet
     ];
-    xai-realtime = finalAttrs.passthru.optional-dependencies.xai
-    ++ finalAttrs.passthru.optional-dependencies.openai
-    ++ finalAttrs.passthru.optional-dependencies.realtime;
+    xai-realtime =
+      finalAttrs.passthru.optional-dependencies.xai
+      ++ finalAttrs.passthru.optional-dependencies.openai
+      ++ finalAttrs.passthru.optional-dependencies.realtime;
     zai = [ openai ];
   };
 
