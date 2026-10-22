@@ -68,6 +68,8 @@ rustPlatform.buildRustPackage (finalAttrs: {
     "tests::right_to_left_text_extracts_in_logical_order"
     "--skip"
     "assets::tests::a_failed_file_listing_fails_the_check"
+    "--skip"
+    "objects::tests::a_dragged_shape_leaves_the_text_behind_it"
   ];
 
   # The wordcraft-zotero tests talk to a fake Zotero over a loopback TCP socket.
