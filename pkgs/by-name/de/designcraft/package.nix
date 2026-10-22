@@ -23,7 +23,7 @@
 
 rustPlatform.buildRustPackage (finalAttrs: {
   pname = "designcraft";
-  version = "0.9.0";
+  version = "0.11.0";
   __structuredAttrs = true;
 
   # Upstream releases build against this craft-fonts revision (release.yml CRAFT_FONTS_REF).
@@ -38,10 +38,10 @@ rustPlatform.buildRustPackage (finalAttrs: {
     owner = "storytold";
     repo = "designcraft";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-IL5kXdkFG1CiIuh3dWTphFu5EPHeSrg2eQ8N9dFNqkQ=";
+    hash = "sha256-DiQmSuFIm7ye7h508d8b/YSS3XNZwl5WihitoORKVx0=";
   };
 
-  cargoHash = "sha256-pt/8PkH2c9IKFRgNIKkEUyUMca/glpEoo5CjgM3VVyU=";
+  cargoHash = "sha256-wOq/THtTQNglpwuIgF8v69+TUrwwxPsLoL5OfTIfqaw=";
 
   # Provides the software Vulkan driver (lavapipe) for the wgpu-based egui_kittest tests inside the
   # sandbox; upstream CI gets one from the runner image's mesa. A slim vulkanDrivers-only override
