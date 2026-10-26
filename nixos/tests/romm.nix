@@ -36,6 +36,8 @@
         machine.wait_for_unit("romm.service")
         machine.wait_for_open_port(8080)
         machine.wait_for_unit("romm-worker.service")
+        machine.wait_for_unit("romm-scan-worker.service")
+        machine.wait_for_unit("romm-streaming-worker.service")
         machine.wait_for_unit("romm-scheduler.service")
         machine.wait_for_unit("romm-watcher.service")
         machine.wait_for_unit("nginx.service")

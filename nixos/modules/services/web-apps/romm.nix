@@ -40,7 +40,8 @@ let
     DB_PORT = toString cfg.database.port;
     REDIS_HOST = redisHost;
     REDIS_PORT = toString cfg.redis.port;
-    # The rq and rqscheduler CLIs do not read RomM's REDIS_* variables.
+    # The rq CLI (worker and cron scheduler) does not read RomM's REDIS_*
+    # variables; it takes the connection from RQ_REDIS_URL.
     RQ_REDIS_HOST = redisHost;
     RQ_REDIS_PORT = toString cfg.redis.port;
     RQ_REDIS_URL = "redis://${redisHost}:${toString cfg.redis.port}/0";
@@ -361,8 +362,35 @@ in
       };
     };
 
+    # Upstream gives library scans and streaming teardowns dedicated workers
+    # so a long scan or a wedged emulator session cannot block the default
+    # queues.
+    systemd.services = {
+      romm-scan-worker = {
+        description = "RomM RQ scan worker";
+        wantedBy = [ "multi-user.target" ];
+        after = [ "romm.service" ];
+        requires = [ "romm.service" ];
+        environment = commonEnv;
+        serviceConfig = commonServiceConfig // {
+          ExecStart = "${cfg.package}/bin/romm-scan-worker";
+        };
+      };
+
+      romm-streaming-worker = {
+        description = "RomM RQ streaming worker";
+        wantedBy = [ "multi-user.target" ];
+        after = [ "romm.service" ];
+        requires = [ "romm.service" ];
+        environment = commonEnv;
+        serviceConfig = commonServiceConfig // {
+          ExecStart = "${cfg.package}/bin/romm-streaming-worker";
+        };
+      };
+    };
+
     systemd.services.romm-scheduler = {
-      description = "RomM RQ scheduler";
+      description = "RomM RQ cron scheduler";
       wantedBy = [ "multi-user.target" ];
       after = [ "romm.service" ];
       requires = [ "romm.service" ];
