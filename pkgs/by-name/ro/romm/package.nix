@@ -67,13 +67,29 @@ stdenvNoCC.mkDerivation (
       wrap ${pythonEnv}/bin/gunicorn romm --add-flags "main:app" \
         --set-default ROMM_HOST 127.0.0.1 \
         --set-default ROMM_PORT 8080 \
-        --run 'export GUNICORN_CMD_ARGS="--bind=''${ROMM_HOST}:''${ROMM_PORT} --worker-class uvicorn_worker.UvicornWorker --workers ''${WEB_SERVER_CONCURRENCY:-''${WEB_CONCURRENCY:-2}} --timeout ''${WEB_SERVER_TIMEOUT:-300} ''${GUNICORN_CMD_ARGS:-}"'
+        --run 'export GUNICORN_CMD_ARGS="--bind=''${ROMM_HOST}:''${ROMM_PORT} --worker-class uvicorn_worker.UvicornWorker --no-control-socket --workers ''${WEB_SERVER_CONCURRENCY:-''${WEB_CONCURRENCY:-4}} --timeout ''${WEB_SERVER_TIMEOUT:-300} --keep-alive ''${WEB_SERVER_KEEPALIVE:-65} --max-requests ''${WEB_SERVER_MAX_REQUESTS:-1000} --max-requests-jitter ''${WEB_SERVER_MAX_REQUESTS_JITTER:-100} --worker-connections ''${WEB_SERVER_WORKER_CONNECTIONS:-1000} ''${GUNICORN_CMD_ARGS:-}"'
 
-      wrap ${pythonEnv}/bin/rq romm-worker \
-        --add-flags "worker --path $out/share/romm/backend --worker-class handler.rq_worker.RomMWorker high default low"
+      # Upstream runs three rq workers: the default queues, library scans
+      # (a long scan must not block anything else), and streaming teardowns
+      # (a wedged emulator session must not block scans).
+      rq_worker() {
+        local name="$1" worker_class="$2"
+        shift 2
+        # --connection-class disables the Redis maint_notifications probe,
+        # which fails against Redis < 8.2; --with-scheduler releases the
+        # delayed jobs through which the watcher queues its rescans.
+        wrap ${pythonEnv}/bin/rq "$name" \
+          --add-flags "worker --path $out/share/romm/backend --worker-class handler.rq_worker.$worker_class --connection-class handler.redis_handler.RomMRedis --results-ttl ''${TASK_RESULT_TTL:-86400} --logging_level ''${LOGLEVEL:-INFO} --with-scheduler $*"
+      }
 
-      wrap ${pythonEnv}/bin/rqscheduler romm-scheduler \
-        --add-flags "--path $out/share/romm/backend"
+      rq_worker romm-worker RomMWorker high default low
+      rq_worker romm-scan-worker RomMWorker scans
+      rq_worker romm-streaming-worker PreloadingWorker streaming
+
+      # rq 2.12 replaced the standalone `rqscheduler` with its own cron
+      # scheduler, driven by the task registry in tasks.cron_config.
+      wrap ${pythonEnv}/bin/rq romm-scheduler \
+        --add-flags "cron --path $out/share/romm/backend --connection-class handler.redis_handler.RomMRedis --logging-level ''${LOGLEVEL:-INFO} tasks.cron_config"
 
       cat > $out/bin/romm-watcher <<EOF
       #!${runtimeShell}
@@ -97,17 +113,18 @@ stdenvNoCC.mkDerivation (
           aiohttp
           alembic
           anyio
+          apprise
           asyncssh
           authlib
           bcrypt
           colorama
+          croniter
           cryptography
           defusedxml
           email-validator
           fastapi
-          fastapi-pagination
           gunicorn
-          httpx
+          httpx2
           itsdangerous
           jinja2
           joserfc
@@ -121,7 +138,6 @@ stdenvNoCC.mkDerivation (
           opentelemetry-instrumentation-httpx
           opentelemetry-instrumentation-redis
           opentelemetry-instrumentation-sqlalchemy
-          passlib
           pillow
           psycopg
           pydantic
@@ -133,7 +149,6 @@ stdenvNoCC.mkDerivation (
           pyyaml
           redis
           rq
-          rq-scheduler
           sentry-sdk
           sqlalchemy
           starlette
@@ -146,7 +161,6 @@ stdenvNoCC.mkDerivation (
           watchfiles
           yarl
           zipfile-inflate64
-          zstandard
         ]
       );
 
