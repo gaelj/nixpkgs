@@ -175,6 +175,7 @@ in
           "AF_UNIX"
         ];
         NoNewPrivileges = true;
+        PrivateIPC = true;
         PrivateMounts = true;
         PrivateTmp = true;
         PrivateUsers = true;
