@@ -473,6 +473,7 @@ in
               LockPersonality = true;
               NoNewPrivileges = true;
               PrivateDevices = false;
+              PrivateIPC = true;
               PrivateTmp = true;
               PrivateUsers = false;
               ProtectClock = true;
@@ -485,7 +486,9 @@ in
               ProtectProc = "invisible";
               ProtectSystem = "full";
               RestrictNamespaces = true;
+              RestrictRealtime = true;
               RestrictSUIDSGID = true;
+              SystemCallArchitectures = "native";
               User = cfg.user;
               Group = cfg.group;
               UMask = "0007";
