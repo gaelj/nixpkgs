@@ -42,6 +42,7 @@ let
     WorkingDirectory = cfg.package;
     PrivateTmp = true;
     PrivateDevices = true;
+    PrivateIPC = true;
     CapabilityBoundingSet = "";
     AmbientCapabilities = "";
     ProtectSystem = "strict";
