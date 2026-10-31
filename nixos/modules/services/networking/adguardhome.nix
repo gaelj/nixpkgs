@@ -239,9 +239,11 @@ in
         SystemCallArchitectures = "native";
         DevicePolicy = "closed";
         LockPersonality = true;
+        MemoryDenyWriteExecute = true;
         NoNewPrivileges = true;
         PrivateTmp = true;
         PrivateDevices = true;
+        PrivateIPC = true;
         PrivateMounts = true;
         ProtectClock = true;
         ProtectControlGroups = true;
@@ -250,6 +252,8 @@ in
         ProtectKernelLogs = true;
         ProtectKernelModules = true;
         ProtectKernelTunables = true;
+        ProtectProc = "invisible";
+        ProcSubset = "pid";
         ProtectSystem = "strict";
         RemoveIPC = true;
         RestrictAddressFamilies = [
@@ -262,6 +266,7 @@ in
         ++ lib.optionals cfg.allowDHCP [ "AF_PACKET" ];
         RestrictNamespaces = true;
         RestrictRealtime = true;
+        RestrictSUIDSGID = true;
         UMask = "0077";
       };
     };
