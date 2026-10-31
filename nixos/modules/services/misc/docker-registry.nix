@@ -29,6 +29,25 @@ let
   };
 
   configFile = cfg.configFile;
+
+  needsRuntimeConfig = cfg.enableRedisCache && cfg.redisPasswordFile != null;
+
+  runtimeConfigPath = "/run/docker-registry/config.yml";
+
+  # The config file handed to the processes: when a Redis password file is
+  # configured the store-reachable config is copied at runtime and the
+  # password injected, so the secret never ends up in the Nix store.
+  effectiveConfigFile = if needsRuntimeConfig then runtimeConfigPath else configFile;
+
+  generateRuntimeConfig = pkgs.writeShellScript "docker-registry-generate-config" ''
+    mkdir -p /run/docker-registry
+    ${pkgs.jq}/bin/jq \
+      --arg pw "$(cat "$CREDENTIALS_DIRECTORY/redis-password")" \
+      '.redis.password = $pw' \
+      ${configFile} > ${runtimeConfigPath}
+    chown docker-registry:docker-registry ${runtimeConfigPath}
+    chmod 0600 ${runtimeConfigPath}
+  '';
 in
 {
   options.services.dockerRegistry = {
@@ -85,6 +104,21 @@ in
       description = "Set redis password.";
     };
 
+    redisPasswordFile = lib.mkOption {
+      type = lib.types.nullOr lib.types.path;
+      default = null;
+      example = lib.literalExpression "/run/secrets/redis-password";
+      description = ''
+        Path to a file containing the Redis password, loaded into the service
+        with systemd's `LoadCredential=`.  Unlike [](#opt-services.dockerRegistry.redisPassword)
+        this keeps the secret out of the Nix store: the effective
+        configuration is generated at startup by injecting the password into
+        [](#opt-services.dockerRegistry.configFile).  Mutually exclusive with
+        [](#opt-services.dockerRegistry.redisPassword) and only used when
+        [](#opt-services.dockerRegistry.enableRedisCache) is set.
+      '';
+    };
+
     extraConfig = lib.mkOption {
       description = ''
         Docker extra registry configuration.
@@ -107,11 +141,21 @@ in
         Path to CNCF distribution config file.
 
         Setting this option will override any configuration applied by the extraConfig option.
+
+        When [](#opt-services.dockerRegistry.redisPasswordFile) is in effect the file is
+        read at startup and the password injected with `jq`, so it must be
+        JSON (the generated default is).
       '';
       type = lib.types.path;
     };
 
     enableGarbageCollect = lib.mkEnableOption "garbage collect";
+
+    gcDeleteUntagged = lib.mkEnableOption ''
+      deletion of untagged manifests during garbage collection.
+      This passes `--delete-untagged` to `registry garbage-collect`, which
+      removes blobs reachable only through untagged manifests.
+    '';
 
     garbageCollectDates = lib.mkOption {
       default = "daily";
@@ -125,10 +169,16 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    assertions = [
+      {
+        assertion = !(cfg.enableRedisCache && cfg.redisPassword != "" && cfg.redisPasswordFile != null);
+        message = "At most one of services.dockerRegistry.redisPassword and services.dockerRegistry.redisPasswordFile may be set.";
+      }
+    ];
+
     services.dockerRegistry.extraConfig = lib.mkIf cfg.enableRedisCache {
       redis = {
         addr = "${cfg.redisUrl}";
-        password = "${cfg.redisPassword}";
         db = 0;
         dialtimeout = "10ms";
         readtimeout = "10ms";
@@ -138,6 +188,9 @@ in
           maxactive = 64;
           idletimeout = "300s";
         };
+      }
+      // lib.optionalAttrs (cfg.redisPasswordFile == null) {
+        password = "${cfg.redisPassword}";
       };
     };
 
@@ -147,10 +200,68 @@ in
       after = [ "network.target" ];
 
       serviceConfig = {
-        ExecStart = "${lib.getExe cfg.package} serve ${configFile}";
+        ExecStart = "${lib.getExe cfg.package} serve ${effectiveConfigFile}";
         User = "docker-registry";
-        WorkingDirectory = cfg.storagePath;
-        AmbientCapabilities = lib.mkIf (cfg.port < 1024) "cap_net_bind_service";
+        Group = "docker-registry";
+        WorkingDirectory = lib.mkIf (cfg.storagePath != null) cfg.storagePath;
+
+        LoadCredential = lib.mkIf (cfg.redisPasswordFile != null) [
+          "redis-password:${cfg.redisPasswordFile}"
+        ];
+        # Runs as root before dropping to the service user, once the runtime
+        # directory exists, so the password-injected config can be handed over
+        # owned by (and only readable to) the service user.
+        ExecStartPre = lib.mkIf needsRuntimeConfig [ "+${generateRuntimeConfig}" ];
+
+        RuntimeDirectory = "docker-registry";
+        RuntimeDirectoryMode = "0750";
+        StateDirectory = lib.mkIf (cfg.storagePath == "/var/lib/docker-registry") "docker-registry";
+        ReadWritePaths =
+          lib.optional (cfg.storagePath != null) cfg.storagePath
+          ++ lib.optional needsRuntimeConfig "/run/docker-registry";
+
+        # CAP_NET_BIND_SERVICE is only effective in the host network namespace;
+        # inside a private user namespace the capability does not permit binding
+        # low ports, so the two are mutually exclusive.
+        PrivateUsers = !(cfg.port < 1024);
+        AmbientCapabilities = lib.mkIf (cfg.port < 1024) [ "CAP_NET_BIND_SERVICE" ];
+        CapabilityBoundingSet = if cfg.port < 1024 then [ "CAP_NET_BIND_SERVICE" ] else [ "" ];
+
+        NoNewPrivileges = true;
+        ProtectSystem = "strict";
+        ProtectHome = true;
+        ProtectKernelTunables = true;
+        ProtectKernelModules = true;
+        ProtectKernelLogs = true;
+        ProtectControlGroups = true;
+        ProtectClock = true;
+        ProtectHostname = true;
+        ProtectProc = "invisible";
+        ProcSubset = "pid";
+        PrivateTmp = true;
+        PrivateDevices = true;
+        PrivateIPC = true;
+        RemoveIPC = true;
+        RestrictNamespaces = true;
+        RestrictRealtime = true;
+        RestrictSUIDSGID = true;
+        LockPersonality = true;
+        MemoryDenyWriteExecute = true;
+        SystemCallArchitectures = "native";
+        SystemCallFilter = [
+          "@system-service"
+          "~@privileged"
+          "~@resources"
+        ];
+        RestrictAddressFamilies = [
+          "AF_INET"
+          "AF_INET6"
+          # communicating with the journal
+          "AF_UNIX"
+        ];
+        # Group-readable uploads allow backup tooling to join the
+        # docker-registry group instead of requiring root.
+        UMask = "0027";
       };
     };
 
@@ -160,11 +271,57 @@ in
       restartIfChanged = false;
       unitConfig.X-StopOnRemoval = false;
 
-      serviceConfig.Type = "oneshot";
+      serviceConfig = {
+        Type = "oneshot";
+        LoadCredential = lib.mkIf (cfg.redisPasswordFile != null) [
+          "redis-password:${cfg.redisPasswordFile}"
+        ];
+        NoNewPrivileges = true;
+        ProtectSystem = "strict";
+        ProtectHome = true;
+        PrivateTmp = true;
+        PrivateDevices = true;
+        PrivateIPC = true;
+        ReadWritePaths =
+          lib.optional (cfg.storagePath != null) cfg.storagePath
+          ++ lib.optional needsRuntimeConfig "/run/docker-registry";
+        ProtectKernelTunables = true;
+        ProtectKernelModules = true;
+        ProtectKernelLogs = true;
+        ProtectControlGroups = true;
+        ProtectClock = true;
+        ProtectHostname = true;
+        CapabilityBoundingSet = [ "" ];
+        AmbientCapabilities = [ "" ];
+        RestrictNamespaces = true;
+        RestrictRealtime = true;
+        RestrictSUIDSGID = true;
+        LockPersonality = true;
+        RemoveIPC = true;
+        MemoryDenyWriteExecute = true;
+        SystemCallArchitectures = "native";
+        SystemCallFilter = [
+          "@system-service"
+          "~@privileged"
+          "~@resources"
+        ];
+        RestrictAddressFamilies = [
+          "AF_UNIX"
+        ]
+        ++ lib.optionals cfg.enableRedisCache [
+          "AF_INET"
+          "AF_INET6"
+        ];
+        UMask = "0027";
+      };
 
+      # The unit runs as root: the registry must be stopped for the duration of
+      # the collection (upstream recommends exclusive access) and restarted
+      # afterwards, which a sandboxed service user could not do itself.
       script = ''
-        ${cfg.package}/bin/registry garbage-collect ${configFile}
-        /run/current-system/systemd/bin/systemctl restart docker-registry.service
+        systemctl stop docker-registry.service
+        ${lib.optionalString needsRuntimeConfig "${generateRuntimeConfig}\n"}${cfg.package}/bin/registry garbage-collect ${lib.optionalString cfg.gcDeleteUntagged "--delete-untagged"} ${effectiveConfigFile}
+        systemctl start docker-registry.service
       '';
 
       startAt = lib.optional cfg.enableGarbageCollect cfg.garbageCollectDates;
