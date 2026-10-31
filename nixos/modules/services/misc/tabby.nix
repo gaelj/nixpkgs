@@ -158,6 +158,42 @@ in
             {
               ExecStart = "${lib.getExe tabbyPackage} serve --model ${cfg.model} --host ${cfg.host} --port ${toString cfg.port} --device ${tabbyPackage.featureDevice}";
             }
+            {
+              NoNewPrivileges = true;
+              AmbientCapabilities = [ "" ];
+              CapabilityBoundingSet = [ "" ];
+              # PrivateDevices stays off because the CUDA and ROCm
+              # acceleration backends need the GPU device nodes, and
+              # MemoryDenyWriteExecute because the CUDA driver JITs PTX code
+              # into executable mappings.
+              ProtectSystem = "strict";
+              ProtectHome = true;
+              PrivateTmp = true;
+              PrivateIPC = true;
+              ProtectKernelTunables = true;
+              ProtectKernelModules = true;
+              ProtectKernelLogs = true;
+              ProtectControlGroups = true;
+              ProtectClock = true;
+              ProtectHostname = true;
+              RestrictNamespaces = true;
+              RestrictRealtime = true;
+              RestrictSUIDSGID = true;
+              LockPersonality = true;
+              RemoveIPC = true;
+              SystemCallArchitectures = "native";
+              # Only the @system-service base set: inference runtimes pin
+              # threads with sched_setaffinity, which ~@resources would deny,
+              # and unknown calls then fail with EPERM instead of killing the
+              # service.
+              SystemCallFilter = [ "@system-service" ];
+              SystemCallErrorNumber = "EPERM";
+              RestrictAddressFamilies = [
+                "AF_INET"
+                "AF_INET6"
+                "AF_UNIX"
+              ];
+            }
           ];
         };
       };
