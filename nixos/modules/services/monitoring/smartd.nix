@@ -287,6 +287,38 @@ in
       serviceConfig = {
         Type = "notify";
         ExecStart = "${pkgs.smartmontools}/sbin/smartd ${lib.concatStringsSep " " cfg.extraOptions} --no-fork --configfile=${smartdConf}";
+
+        # Hardening. This unit runs as root and must keep raw access to
+        # the block devices below /dev, so PrivateDevices is not set.
+        # ProtectProc/ProcSubset stay off because smartd inspects
+        # sysfs/procfs to autodetect devices by design. The syscall
+        # filter is the additive @system-service set only, without the
+        # ~@privileged deny-list, because legacy ATA port access can go
+        # through ioperm/iopl. ExecStart stays untouched; mail via
+        # smartd's run command inherits the root context as before.
+        NoNewPrivileges = true;
+        PrivateTmp = true;
+        PrivateIPC = true;
+        ProtectSystem = "full";
+        ProtectHome = true;
+        ProtectKernelTunables = true;
+        ProtectKernelModules = true;
+        ProtectKernelLogs = true;
+        ProtectControlGroups = true;
+        ProtectClock = true;
+        ProtectHostname = true;
+        RestrictNamespaces = true;
+        RestrictRealtime = true;
+        RestrictSUIDSGID = true;
+        LockPersonality = true;
+        MemoryDenyWriteExecute = true;
+        SystemCallArchitectures = "native";
+        SystemCallFilter = [ "@system-service" ];
+        RestrictAddressFamilies = [
+          "AF_UNIX"
+          "AF_INET"
+          "AF_INET6"
+        ];
       };
     };
 
