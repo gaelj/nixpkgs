@@ -439,6 +439,45 @@ in
             name
             "${name}/music"
           ];
+        # Hardening. PrivateDevices is deliberately not enabled: the
+        # ALSA output writes to the devices under /dev/snd via the
+        # audio group membership of the mpd user. PrivateUsers is not
+        # enabled for the same reason (it drops the supplementary
+        # groups). ProtectHome is read-only because the music
+        # directory commonly lives under /home. MemoryDenyWriteExecute
+        # is safe (mpd is a plain C++ daemon); the syscall filter is
+        # @system-service only because audio_output "priority" uses
+        # the RT scheduling calls that ~@resources would block.
+        NoNewPrivileges = true;
+        AmbientCapabilities = [ "" ];
+        CapabilityBoundingSet = [ "" ];
+        PrivateTmp = true;
+        PrivateIPC = true;
+        ProtectHome = "read-only";
+        ProtectSystem = "strict";
+        ProtectKernelTunables = true;
+        ProtectKernelModules = true;
+        ProtectKernelLogs = true;
+        ProtectControlGroups = true;
+        ProtectClock = true;
+        ProtectHostname = true;
+        ProtectProc = "invisible";
+        ProcSubset = "pid";
+        RestrictNamespaces = true;
+        RestrictRealtime = true;
+        RestrictSUIDSGID = true;
+        LockPersonality = true;
+        RemoveIPC = true;
+        MemoryDenyWriteExecute = true;
+        SystemCallArchitectures = "native";
+        SystemCallFilter = [ "@system-service" ];
+        SystemCallErrorNumber = "EPERM";
+        RestrictAddressFamilies = [
+          "AF_INET"
+          "AF_INET6"
+          "AF_UNIX"
+        ];
+        UMask = "0077";
       };
     };
 
