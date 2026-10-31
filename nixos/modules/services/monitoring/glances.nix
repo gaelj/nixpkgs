@@ -83,6 +83,7 @@ in
         ProtectHome = true;
         PrivateTmp = true;
         PrivateDevices = true;
+        PrivateIPC = true;
         ProtectKernelTunables = true;
         ProtectKernelModules = true;
         ProtectKernelLogs = true;
@@ -96,11 +97,13 @@ in
         ];
         LockPersonality = true;
         RestrictRealtime = true;
+        RestrictSUIDSGID = true;
         ProtectClock = true;
         ReadWritePaths = [ "/var/log" ];
         CapabilityBoundingSet = [ "CAP_NET_BIND_SERVICE" ];
         AmbientCapabilities = [ "CAP_NET_BIND_SERVICE" ];
         SystemCallFilter = [ "@system-service" ];
+        SystemCallArchitectures = "native";
       };
     };
 
