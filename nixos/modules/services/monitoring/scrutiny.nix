@@ -254,6 +254,7 @@ in
           PrivateTmp = true;
           PrivateMounts = true;
           PrivateDevices = true;
+          PrivateIPC = true;
           ProtectClock = true;
           ProtectControlGroups = true;
           ProtectHome = true;
