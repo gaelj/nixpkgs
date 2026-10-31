@@ -68,19 +68,13 @@ in
       # The service used to run as root; move data and cache directories
       # owned by root over to the gonic user once. Fresh installs are
       # handled by StateDirectory/CacheDirectory ownership management.
-      preStart =
-        lib.concatMapStringsSep "\n"
-          (path: ''
-            if [ -d '${path}' ] && [ "$(stat -c '%u' '${path}')" = 0 ]; then
-              chown -R gonic:gonic '${path}'
-            fi
-          '')
-          (
-            lib.unique [
-              "/var/lib/gonic"
-              cfg.settings.cache-path
-            ]
-          );
+      # settings.cache-path may be a string or a list (the keyValue
+      # settings format merges duplicate keys into lists).
+      preStart = lib.concatMapStringsSep "\n" (path: ''
+        if [ -d '${path}' ] && [ "$(stat -c '%u' '${path}')" = 0 ]; then
+          chown -R gonic:gonic '${path}'
+        fi
+      '') (lib.unique ([ "/var/lib/gonic" ] ++ lib.toList cfg.settings.cache-path));
 
       serviceConfig = {
         ExecStart =
