@@ -176,7 +176,18 @@ in
 
       # We setup `EARLYOOM_ARGS` via drop-ins, so disable the default import
       # from /etc/default/earlyoom.
-      serviceConfig.EnvironmentFile = "";
+      serviceConfig = {
+        EnvironmentFile = "";
+
+        # The unit shipped with earlyoom is already hardened; complete the
+        # set with the options upstream does not carry. All of them are safe
+        # for a pure-C /proc-polling killer that writes nothing.
+        MemoryDenyWriteExecute = true;
+        NoNewPrivileges = true;
+        PrivateIPC = true;
+        PrivateTmp = true;
+        RestrictSUIDSGID = true;
+      };
 
       environment.EARLYOOM_ARGS =
         lib.cli.toCommandLineShellGNU { } {
