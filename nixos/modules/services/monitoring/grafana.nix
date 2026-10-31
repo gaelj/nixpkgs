@@ -2108,6 +2108,7 @@ in
         LockPersonality = true;
         NoNewPrivileges = true;
         PrivateDevices = true;
+        PrivateIPC = true;
         PrivateTmp = true;
         ProtectClock = true;
         ProtectControlGroups = true;
