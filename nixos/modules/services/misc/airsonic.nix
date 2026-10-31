@@ -155,6 +155,46 @@ in
         Restart = "always";
         User = "airsonic";
         UMask = "0022";
+
+        NoNewPrivileges = true;
+        AmbientCapabilities = [ "" ];
+        CapabilityBoundingSet = [ "" ];
+        # The music directories and the home are configured by the user and
+        # are frequently placed under /home, so neither the filesystem nor
+        # the home directories may be locked down further than this;
+        # PrivateDevices is left off because the jukebox feature plays
+        # through ALSA devices, ProtectProc/ProcSubset because the JVM's
+        # container support reads /proc/1/cgroup, and
+        # MemoryDenyWriteExecute because the JVM is a JIT compiler.
+        ProtectSystem = "strict";
+        ReadWritePaths = [ cfg.home ];
+        PrivateTmp = true;
+        PrivateIPC = true;
+        ProtectKernelTunables = true;
+        ProtectKernelModules = true;
+        ProtectKernelLogs = true;
+        ProtectControlGroups = true;
+        ProtectClock = true;
+        ProtectHostname = true;
+        RestrictNamespaces = true;
+        RestrictRealtime = true;
+        RestrictSUIDSGID = true;
+        LockPersonality = true;
+        RemoveIPC = true;
+        SystemCallArchitectures = "native";
+        # Only the base filter set: the ~@privileged/~@resources exclusions
+        # would deny ioctls and scheduling calls the JVM and the ALSA jukebox
+        # path legitimately need, and unknown calls fail with EPERM instead of
+        # killing the service.
+        SystemCallFilter = [ "@system-service" ];
+        SystemCallErrorNumber = "EPERM";
+        # AF_NETLINK for getifaddrs() when enumerating the listen address.
+        RestrictAddressFamilies = [
+          "AF_INET"
+          "AF_INET6"
+          "AF_UNIX"
+          "AF_NETLINK"
+        ];
       };
     };
 
