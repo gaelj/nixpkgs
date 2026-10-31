@@ -16,6 +16,20 @@ let
     ;
   settingsFormat = pkgs.formats.ini { };
 
+  # Options the shipped cockpit units do not carry themselves.
+  netUnitHardening = {
+    LockPersonality = true;
+    ProtectClock = true;
+    ProtectHome = true;
+    ProtectHostname = true;
+    ProtectKernelLogs = true;
+    ProtectKernelModules = true;
+    RestrictNamespaces = true;
+    RestrictRealtime = true;
+    RestrictSUIDSGID = true;
+    SystemCallArchitectures = "native";
+  };
+
   pathPkgs = [ cfg.package ] ++ cfg.plugins;
 
   resourcesEnv = pkgs.buildEnv {
@@ -162,16 +176,25 @@ in
     };
 
     # Enable connecting to remote hosts from the login page
-    systemd.services = mkIf (cfg.settings.WebService.LoginTo or false) {
-      "cockpit-wsinstance-http".path = [
-        config.programs.ssh.package
-        cfg.package
-      ];
-      "cockpit-wsinstance-https@".path = [
-        config.programs.ssh.package
-        cfg.package
-      ];
-    };
+    systemd.services."cockpit-wsinstance-http".path = mkIf (cfg.settings.WebService.LoginTo or false) [
+      config.programs.ssh.package
+      cfg.package
+    ];
+    systemd.services."cockpit-wsinstance-https@".path =
+      mkIf (cfg.settings.WebService.LoginTo or false)
+        [
+          config.programs.ssh.package
+          cfg.package
+        ];
+
+    # The units shipped with cockpit already sandbox the network-facing
+    # daemons (DynamicUser, ProtectSystem=strict, SystemCallFilter);
+    # complete the set. cockpit-session@ is deliberately not touched: it
+    # runs the cockpit-bridge of every logged-in user, which needs full
+    # system access by design.
+    systemd.services.cockpit.serviceConfig = netUnitHardening;
+    systemd.services."cockpit-wsinstance-http".serviceConfig = netUnitHardening;
+    systemd.services."cockpit-wsinstance-https@".serviceConfig = netUnitHardening;
 
     systemd.tmpfiles.rules = [
       # From $out/lib/tmpfiles.d/cockpit-tmpfiles.conf
