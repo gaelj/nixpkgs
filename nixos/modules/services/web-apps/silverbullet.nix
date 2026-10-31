@@ -110,6 +110,49 @@ in
           "${lib.getExe cfg.package} --port ${toString cfg.listenPort} --hostname '${cfg.listenAddress}' '${cfg.spaceDir}' "
           + lib.concatStringsSep " " cfg.extraArgs;
         Restart = "on-failure";
+        # Hardening. MemoryDenyWriteExecute is deliberately not set:
+        # Silverbullet runs on Deno, and V8 needs writable executable
+        # memory for its JIT.
+        NoNewPrivileges = true;
+        AmbientCapabilities = [ "" ];
+        CapabilityBoundingSet = [ "" ];
+        PrivateTmp = true;
+        PrivateDevices = true;
+        PrivateIPC = true;
+        ProtectHome = "read-only";
+        ProtectSystem = "strict";
+        ProtectKernelTunables = true;
+        ProtectKernelModules = true;
+        ProtectKernelLogs = true;
+        ProtectControlGroups = true;
+        ProtectClock = true;
+        ProtectHostname = true;
+        ProtectProc = "invisible";
+        ProcSubset = "pid";
+        RestrictNamespaces = true;
+        RestrictRealtime = true;
+        RestrictSUIDSGID = true;
+        LockPersonality = true;
+        RemoveIPC = true;
+        SystemCallArchitectures = "native";
+        SystemCallFilter = [
+          "@system-service"
+          "~@privileged"
+          "~@resources"
+        ];
+        SystemCallErrorNumber = "EPERM";
+        # AF_UNIX is needed to talk to the journal; the server binds
+        # INET/INET6 sockets for its HTTP interface.
+        RestrictAddressFamilies = [
+          "AF_INET"
+          "AF_INET6"
+          "AF_UNIX"
+        ];
+        UMask = "0077";
+        # The space directory may live anywhere the user chooses
+        # (including under /home, hence ProtectHome=read-only rather
+        # than a tmpfs).
+        ReadWritePaths = [ cfg.spaceDir ];
       };
     };
 
