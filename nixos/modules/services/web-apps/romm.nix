@@ -90,9 +90,42 @@ let
     Restart = "on-failure";
     # Hardening
     NoNewPrivileges = true;
+    AmbientCapabilities = [ "" ];
+    CapabilityBoundingSet = [ "" ];
     PrivateTmp = true;
+    PrivateDevices = true;
+    PrivateIPC = true;
     ProtectHome = true;
     ProtectSystem = "strict";
+    ProtectKernelTunables = true;
+    ProtectKernelModules = true;
+    ProtectKernelLogs = true;
+    ProtectControlGroups = true;
+    ProtectClock = true;
+    ProtectHostname = true;
+    ProtectProc = "invisible";
+    ProcSubset = "pid";
+    RestrictNamespaces = true;
+    RestrictRealtime = true;
+    RestrictSUIDSGID = true;
+    LockPersonality = true;
+    RemoveIPC = true;
+    MemoryDenyWriteExecute = true;
+    SystemCallArchitectures = "native";
+    SystemCallFilter = [
+      "@system-service"
+      "~@privileged"
+      "~@resources"
+    ];
+    SystemCallErrorNumber = "EPERM";
+    # AF_UNIX for the PostgreSQL peer-auth socket, INET/INET6 for the
+    # scanner, external databases and downloads.
+    RestrictAddressFamilies = [
+      "AF_INET"
+      "AF_INET6"
+      "AF_UNIX"
+    ];
+    UMask = "0077";
     ReadWritePaths = [ cfg.dataDir ];
     Environment = [
       "PATH=${lib.makeBinPath [ pkgs.rahasher ]}:/run/current-system/sw/bin"
