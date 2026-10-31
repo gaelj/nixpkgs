@@ -24,6 +24,47 @@ let
         --prefix PYTHONPATH : $out/${pkgs.mopidyPackages.python.sitePackages}
     '';
   };
+
+  # Isolation options shared by the mopidy and mopidy-scan services.
+  # PrivateDevices is deliberately not enabled: the GStreamer audio
+  # sink writes directly to the ALSA devices under /dev/snd, and the
+  # machine may also expose PipeWire sockets to the mopidy user.
+  # MemoryDenyWriteExecute stays off as well; GStreamer's plugin
+  # loader and codec libraries map executable memory. ProtectHome is
+  # read-only rather than a tmpfs because the local-files library
+  # commonly lives under /home.
+  commonServiceConfig = {
+    NoNewPrivileges = true;
+    AmbientCapabilities = [ "" ];
+    CapabilityBoundingSet = [ "" ];
+    PrivateTmp = true;
+    PrivateIPC = true;
+    ProtectHome = "read-only";
+    ProtectSystem = "strict";
+    ProtectKernelTunables = true;
+    ProtectKernelModules = true;
+    ProtectKernelLogs = true;
+    ProtectControlGroups = true;
+    ProtectClock = true;
+    ProtectHostname = true;
+    ProtectProc = "invisible";
+    ProcSubset = "pid";
+    RestrictNamespaces = true;
+    RestrictRealtime = true;
+    RestrictSUIDSGID = true;
+    LockPersonality = true;
+    RemoveIPC = true;
+    SystemCallArchitectures = "native";
+    SystemCallFilter = [ "@system-service" ];
+    SystemCallErrorNumber = "EPERM";
+    RestrictAddressFamilies = [
+      "AF_INET"
+      "AF_INET6"
+      "AF_UNIX"
+    ];
+    UMask = "0077";
+    ReadWritePaths = [ cfg.dataDir ];
+  };
 in
 {
   imports = [
@@ -92,7 +133,7 @@ in
       ];
       wants = [ "network-online.target" ];
       description = "mopidy music player daemon";
-      serviceConfig = {
+      serviceConfig = commonServiceConfig // {
         ExecStart = "${mopidyEnv}/bin/mopidy --config ${
           lib.concatStringsSep ":" ([ mopidyConf ] ++ cfg.extraConfigFiles)
         }";
@@ -103,7 +144,7 @@ in
 
     systemd.services.mopidy-scan = {
       description = "mopidy local files scanner";
-      serviceConfig = {
+      serviceConfig = commonServiceConfig // {
         ExecStart = "${mopidyEnv}/bin/mopidy --config ${
           lib.concatStringsSep ":" ([ mopidyConf ] ++ cfg.extraConfigFiles)
         } local scan";
