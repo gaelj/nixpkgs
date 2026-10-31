@@ -236,10 +236,11 @@ in
             ports = [
               "127.0.0.1:${toString cfg.chromePort}:4444"
             ];
-            volumes = [
-              "/dev/shm:/dev/shm"
+            volumes = [ ];
+            extraOptions = [
+              "--network=bridge"
+              "--shm-size=512m"
             ];
-            extraOptions = [ "--network=bridge" ];
           };
         })
 
