@@ -256,10 +256,42 @@ in
       description = "Lighttpd Web Server";
       after = [ "network.target" ];
       wantedBy = [ "multi-user.target" ];
-      serviceConfig.ExecStart = "${cfg.package}/sbin/lighttpd -D -f ${configFile}";
-      serviceConfig.ExecReload = "${pkgs.coreutils}/bin/kill -SIGUSR1 $MAINPID";
-      # SIGINT => graceful shutdown
-      serviceConfig.KillSignal = "SIGINT";
+
+      # The master process runs as root and drops privileges to the
+      # configured user, so capabilities must stay untouched and the
+      # @privileged syscall deny-list is out of the question.  CGI and
+      # shell-exec spawned applications inherit this sandbox, which is
+      # why we also refrain from SystemCallFilter whitelists (execve is
+      # not part of @system-service), MemoryDenyWriteExecute (PHP opcache
+      # JIT), PrivateTmp (applications talk to each other through /tmp
+      # sockets) and ProtectProc.  ProtectSystem=full keeps /var writable
+      # for the state and access-log directories, wherever they live.
+      serviceConfig = {
+        ExecStart = "${cfg.package}/sbin/lighttpd -D -f ${configFile}";
+        ExecReload = "${pkgs.coreutils}/bin/kill -SIGUSR1 $MAINPID";
+        # SIGINT => graceful shutdown
+        KillSignal = "SIGINT";
+
+        NoNewPrivileges = true;
+        ProtectSystem = "full";
+        ProtectHome = "read-only"; # mod_userdir still works
+        ProtectKernelTunables = true;
+        ProtectKernelModules = true;
+        ProtectKernelLogs = true;
+        ProtectControlGroups = true;
+        ProtectClock = true;
+        ProtectHostname = true;
+        RestrictNamespaces = true;
+        RestrictRealtime = true;
+        RestrictSUIDSGID = true;
+        LockPersonality = true;
+        SystemCallArchitectures = "native";
+        RestrictAddressFamilies = [
+          "AF_INET"
+          "AF_INET6"
+          "AF_UNIX"
+        ];
+      };
     };
 
     users.users.lighttpd = {
