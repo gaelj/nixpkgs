@@ -121,6 +121,40 @@ in
         AmbientCapabilities = "CAP_NET_RAW";
         CapabilityBoundingSet = "CAP_NET_RAW";
         NoNewPrivileges = true;
+        PrivateTmp = true;
+        PrivateDevices = true;
+        PrivateIPC = true;
+        ProtectSystem = "strict";
+        ProtectHome = true;
+        ProtectKernelTunables = true;
+        ProtectKernelModules = true;
+        ProtectKernelLogs = true;
+        ProtectControlGroups = true;
+        ProtectClock = true;
+        ProtectHostname = true;
+        ProtectProc = "invisible";
+        ProcSubset = "pid";
+        RestrictNamespaces = true;
+        RestrictRealtime = true;
+        RestrictSUIDSGID = true;
+        LockPersonality = true;
+        MemoryDenyWriteExecute = true;
+        SystemCallArchitectures = "native";
+        SystemCallFilter = [
+          "@system-service"
+          "~@privileged"
+          "~@resources"
+        ];
+        SystemCallErrorNumber = "EPERM";
+        # AF_NETLINK is required by prometheus-community/pro-bing for
+        # route lookups when pinging; AF_UNIX for the journal.
+        RestrictAddressFamilies = [
+          "AF_INET"
+          "AF_INET6"
+          "AF_UNIX"
+          "AF_NETLINK"
+        ];
+        UMask = "0077";
       };
 
       environment = {
