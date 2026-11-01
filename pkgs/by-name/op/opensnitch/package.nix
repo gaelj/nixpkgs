@@ -48,6 +48,10 @@ buildGoModule (finalAttrs: {
     hash = "sha256-HnUJA3tdoqOdtO0ZsEtxAmIbFprsW8nI+n50CDNPDh4=";
   };
 
+  # Our patch: honor DefaultAction="deny" even while the UI is disconnected
+  # (upstream fail-opens with a hardcoded allow-once rule instead).
+  patches = [ ./fail-closed-when-ui-disconnected.patch ];
+
   postPatch = ''
     # Allow configuring Version at build time
     substituteInPlace daemon/core/version.go --replace-fail "const " "var "
