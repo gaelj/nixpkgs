@@ -1,0 +1,18 @@
+diff --git a/daemon/ui/client.go b/daemon/ui/client.go
+index b4d6845..ae6d765 100644
+--- a/daemon/ui/client.go
++++ b/daemon/ui/client.go
+@@ -154,6 +154,13 @@ func (c *Client) DefaultAction() rule.Action {
+ 		return clientConnectedRule.Action
+ 	}
+ 
++	// Fail-closed option: if the daemon is configured with DefaultAction
++	// "deny", keep denying unknown connections while the UI is disconnected
++	// instead of the upstream fail-open behaviour.
++	if rule.Action(c.config.DefaultAction) == rule.Deny {
++		return rule.Deny
++	}
++
+ 	return clientDisconnectedRule.Action
+ }
+ 
