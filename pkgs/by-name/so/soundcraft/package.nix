@@ -117,8 +117,6 @@ rustPlatform.buildRustPackage (finalAttrs: {
       lib.licenses.mit
     ];
     mainProgram = "soundcraft";
-    maintainers = with lib.maintainers; [
-      gaelj
-    ];
+    maintainers = with lib.maintainers; [ gaelj ];
   };
 })
