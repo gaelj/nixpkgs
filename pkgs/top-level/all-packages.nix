@@ -5705,7 +5705,7 @@ with pkgs;
   luabind_luajit = luabind.override { lua = luajit; };
 
   luksmeta = callPackage ../development/libraries/luksmeta {
-    asciidoc = asciidoc-full;
+    asciidoc = asciidoc;
   };
 
   matterhorn =
