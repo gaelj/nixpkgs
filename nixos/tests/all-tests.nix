@@ -375,6 +375,7 @@ in
   borgmatic = runTest ./borgmatic.nix;
   bpf = runTestOn [ "x86_64-linux" "aarch64-linux" ] ./bpf.nix;
   bpftune = runTest ./bpftune.nix;
+  brave = runTest ./brave.nix;
   breitbandmessung = runTest ./breitbandmessung.nix;
   broadcast-box = runTest ./broadcast-box.nix;
   brscan5 = runTest ./brscan5.nix;
