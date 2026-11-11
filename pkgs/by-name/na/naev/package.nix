@@ -13,7 +13,7 @@
   freetype,
   glpk,
   intltool,
-  libunibreak,
+  libunibreak_7,
   libvorbis,
   libxml2,
   luajit,
@@ -68,7 +68,7 @@ stdenv.mkDerivation (finalAttrs: {
     enet
     freetype
     glpk
-    libunibreak
+    libunibreak_7
     libvorbis
     libxml2
     luajit
