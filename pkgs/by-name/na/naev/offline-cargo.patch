@@ -1,0 +1,16 @@
+--- a/meson.build
++++ b/meson.build
+@@ -457,8 +457,11 @@
+    # flatpak needs Cargo.lock in the source tarball to be able to generate stuff
+    # https://github.com/flatpak/flatpak-builder-tools/tree/master/cargo
+    meson.add_dist_script( cargo_lock, cargo_toml.full_path() )
+    buildrs = configure_file( input: 'build.rs.in', output: 'build.rs', configuration: cargo_data )
++   # nixpkgs: copy the pinned Cargo.lock next to the generated Cargo.toml so
++   # cargo can build offline from the vendored dependencies.
++   configure_file( input: 'Cargo.lock', output: 'Cargo.lock', copy: true )
+    cargo_env = [ 'CARGO_HOME=' + meson.project_build_root() / 'cargo-home' ]
+-   cargo_options = [ '--manifest-path', cargo_toml ]
++   cargo_options = [ '--manifest-path', cargo_toml, '--locked', '--offline' ]
+    cargo_options += [ '--profile', rust_target ]
+    cargo_options += [ '--target-dir', meson.project_build_root() / 'src' ]
+    if target_triplet != ''
