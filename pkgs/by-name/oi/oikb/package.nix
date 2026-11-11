@@ -7,7 +7,7 @@
 
 python3Packages.buildPythonApplication (finalAttrs: {
   pname = "oikb";
-  version = "0.4.0";
+  version = "0.6.0";
   pyproject = true;
 
   __structuredAttrs = true;
@@ -16,7 +16,7 @@ python3Packages.buildPythonApplication (finalAttrs: {
     owner = "open-webui";
     repo = "oikb";
     rev = "v${finalAttrs.version}";
-    hash = "sha256-/aT69TnOwNKi3cJdPzNch22jllRloe9TIVf7RfTXN80=";
+    hash = "sha256-zh8BtAurJH8lKhlPywqlMI6dw12iuYJ0uU81ARXDArQ=";
   };
 
   build-system = with python3Packages; [
