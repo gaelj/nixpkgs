@@ -1,88 +1,98 @@
 {
   lib,
   stdenv,
-  fetchFromGitHub,
-  fetchurl,
-  unzip,
+  fetchFromCodeberg,
+  rustPlatform,
+  cargo,
+  rustc,
+  rust-bindgen,
+  clang,
   pkg-config,
   python3,
-  SDL2,
-  SDL2_image,
   enet,
   freetype,
   glpk,
   intltool,
-  libpng,
   libunibreak,
   libvorbis,
-  libwebp,
   libxml2,
   luajit,
   meson,
   ninja,
   openal,
   openblas,
+  opus,
   pcre2,
   physfs,
   suitesparse,
-  libyaml,
   cmark,
-  dbus,
+  sdl3,
+  dav1d,
+  libgit2,
+  libssh2,
+  openssl,
+  zlib,
+  perl,
+  nasm,
+  cmake,
 }:
 
-let
-  lyaml = fetchFromGitHub {
-    owner = "gvvaughan";
-    repo = "lyaml";
-    tag = "v6.2.8";
-    hash = "sha256-ADLXi38sAs9ifQ4HJoYzgdp/dw0axGmVCtqJjpqWcmQ=";
-  };
-  nativefiledialog-extended = fetchFromGitHub {
-    owner = "btzy";
-    repo = "nativefiledialog-extended";
-    tag = "v1.2.1";
-    hash = "sha256-GwT42lMZAAKSJpUJE6MYOpSLKUD5o9nSe9lcsoeXgJY=";
-  };
-  nativefiledialog-extended-patch = fetchurl {
-    url = "https://wrapdb.mesonbuild.com/v2/nativefiledialog-extended_1.2.1-1/get_patch";
-    hash = "sha256-BEouiB2HTVWokrYc9VOqdnjRwPBs+us5obQ/NMqXawk=";
-  };
-in
 stdenv.mkDerivation (finalAttrs: {
   pname = "naev";
-  version = "0.12.6";
+  version = "0.13.5";
 
-  src = fetchFromGitHub {
+  # naev 0.13.x is a Rust/SDL3 rewrite whose source ships no Cargo.lock (the
+  # lockfile is generated at build time from Cargo.toml.in templates), so
+  # inject one: rustPlatform.fetchCargoVendor and the offline meson-driven
+  # cargo build both need src/Cargo.lock.
+  # The `assets` submodule stores game data in Git LFS; without fetchLFS the
+  # fonts and music are 130-byte pointer files and naev segfaults at startup.
+  src = fetchFromCodeberg {
     owner = "naev";
     repo = "naev";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-Phes5d7q1PgviwKFcvDvm9xregcbj2NTTPdmbaXJ19Y=";
+    hash = "sha256-kGVG0ZNZmyaBIkZ7lnXW4sazW/ZqTCMrK2dXeEV0Sko=";
     fetchSubmodules = true;
+    fetchLFS = true;
+    postFetch = "cp ${./Cargo.lock} $out/Cargo.lock";
   };
 
+  cargoDeps = rustPlatform.fetchCargoVendor {
+    inherit (finalAttrs) pname version src;
+    hash = "sha256-2CGkVxh7AqMPtMvyv8oVLWYmj7I0KQKqF0nMXnYRmdE=";
+  };
+
+  patches = [ ./offline-cargo.patch ];
+
   buildInputs = [
-    SDL2
-    SDL2_image
     enet
     freetype
     glpk
-    libpng
     libunibreak
     libvorbis
-    libwebp
     libxml2
     luajit
     openal
     openblas
+    opus
     pcre2
     physfs
     suitesparse
-    libyaml
     cmark
-    dbus
+    sdl3
+    dav1d
+    libgit2
+    libssh2
+    openssl
+    zlib
   ];
 
   nativeBuildInputs = [
+    cargo
+    rustc
+    rust-bindgen
+    clang
+    rustPlatform.cargoSetupHook
     (python3.withPackages (
       ps: with ps; [
         pyyaml
@@ -93,7 +103,9 @@ stdenv.mkDerivation (finalAttrs: {
     ninja
     pkg-config
     intltool
-    unzip
+    perl
+    nasm
+    cmake
   ];
 
   mesonFlags = [
@@ -103,27 +115,17 @@ stdenv.mkDerivation (finalAttrs: {
   ];
 
   postPatch = ''
-    patchShebangs --build dat/outfits/bioship/generate.py utils/build/*.py utils/*.py dat/naevpedia/ships/ships.py dat/naevpedia/outfits/outfits.py
-
-    # Add a missing include to fix the build against luajit-2.1.1741730670.
-    # Otherwise the build fails as:
-    #   src/lutf8lib.c:421:22: error: 'INT_MAX' undeclared (first use in this function)
-    # TODO: drop after 0.12.3 release
-    sed -i '1i#include <limits.h>' src/lutf8lib.c
-    cp -r ${lyaml} subprojects/lyaml-6.2.8
-    chmod -R +w subprojects/lyaml-6.2.8
-    cp -r subprojects/packagefiles/lyaml/* subprojects/lyaml-6.2.8
-    cp -r ${nativefiledialog-extended} subprojects/nativefiledialog-extended-1.2.1
-    chmod -R +w subprojects/nativefiledialog-extended-1.2.1
-    tmp=$(mktemp -d)
-    unzip ${nativefiledialog-extended-patch} -d $tmp
-    cp -r $tmp/*/* subprojects/nativefiledialog-extended-1.2.1
+    # naev runs many .py/.sh scripts at meson configure and build time
+    # (dat/tech/*.sh, src/*_c_gen.py, utils/build/*.py, ...) with
+    # `#!/bin/bash` / `#!/usr/bin/env python3` shebangs that do not resolve
+    # in the build sandbox. Skip the assets submodule: pure game data.
+    patchShebangs --build dat utils src po test subprojects/packagefiles
   '';
 
   meta = {
     description = "2D action/rpg space game";
     mainProgram = "naev";
-    homepage = "http://naev.org";
+    homepage = "https://naev.org";
     license = lib.licenses.gpl3Plus;
     maintainers = with lib.maintainers; [ ralismark ];
     platforms = lib.platforms.linux;
