@@ -119,8 +119,6 @@ stdenv.mkDerivation (finalAttrs: {
     badPlatforms = lib.optionals (cudaSupport || rocmSupport) lib.platforms.darwin;
     # audio.cpp requires GCC >= 13 (or an equivalent C++20-capable compiler)
     broken = stdenv.hostPlatform.isLinux && stdenv.cc.isGNU && lib.versionOlder stdenv.cc.version "13";
-    maintainers = with lib.maintainers; [
-      gaelj
-    ];
+    maintainers = with lib.maintainers; [ gaelj ];
   };
 })
