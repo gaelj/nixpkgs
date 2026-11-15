@@ -15,12 +15,25 @@ let
     DEFAULT_LANGUAGE = cfg.defaultLanguage;
     REGISTRATION_MODE = cfg.registrationMode;
     PORT = toString cfg.port;
-    HOST_BIND_ADDRESS = cfg.bindAddress;
+    # The binary reads LISTEN_ADDRESS; HOST_BIND_ADDRESS is a docker-compose
+    # publish variable the application never looks at.
+    LISTEN_ADDRESS = cfg.bindAddress;
     COOKIE_SECURE = if cfg.cookieSecure then "true" else "false";
     TRUST_PROXY_ENABLED = if cfg.trustProxy then "true" else "false";
     PROXY_HEADER = cfg.proxyHeader;
     TRUSTED_PROXIES = lib.concatStringsSep "," cfg.trustedProxies;
     SECRET_KEY_FILE = cfg.secretKeyFile;
+  }
+  // lib.optionalAttrs fenceEnabled {
+    # Half of the restore marker; the other half lives in the database.  A boot
+    # without a usable fence is refused (upstream WEB-399), so this must be set
+    # unless the operator opts out.  CALENDAR_FEED_FENCE_REQUIRE_MOUNT is
+    # deliberately left unset: it is meant for the container image, where the
+    # fence directory has to be a mounted volume instead of the writable layer.
+    CALENDAR_FEED_FENCE_PATH = fencePath;
+  }
+  // lib.optionalAttrs cfg.calendarFeedFence.optOut {
+    CALENDAR_FEED_FENCE_OPTOUT = "true";
   }
   // lib.optionalAttrs (cfg.database.driver == "sqlite") {
     DB_DRIVER = "sqlite";
@@ -38,8 +51,11 @@ let
   }
   // cfg.extraEnv;
 
+  fenceEnabled = !cfg.calendarFeedFence.optOut;
+  # Upstream's fixed fence file name; only its directory is configurable.
+  fencePath = "${cfg.calendarFeedFence.dataDir}/calendar-feed.fence";
+
   envFile = (pkgs.formats.keyValue { }).generate "ovumcy.env" staticEnv;
-  recommendedProxySettings = false;
 in
 {
   # ---------------------------------------------------------------------------
@@ -63,8 +79,11 @@ in
       type = lib.types.str;
       default = "127.0.0.1";
       description = ''
-        Address the server binds to.  Defaults to loopback; change only for an
-        intentional private-network bind (not for direct public exposure).
+        IP address the server binds to, passed to the application as
+        `LISTEN_ADDRESS` (it must be a plain IP such as `127.0.0.1`, `::1` or
+        `0.0.0.0`; an unparsable value refuses the boot).  Defaults to loopback;
+        change only for an intentional private-network bind (not for direct
+        public exposure).
       '';
     };
 
@@ -103,6 +122,8 @@ in
         "fr"
         "ru"
         "es"
+        "de"
+        "it"
       ];
       default = "en";
       description = "Default UI language (users can override from the UI).";
@@ -213,6 +234,45 @@ in
       '';
     };
 
+    # --- Calendar feed restore fence ----------------------------------------
+
+    calendarFeedFence = {
+      dataDir = lib.mkOption {
+        type = lib.types.path;
+        default = "/var/lib/ovumcy-fence";
+        description = ''
+          Persistent directory holding the calendar-feed restore fence file
+          (`calendar-feed.fence`, a name fixed by the application).
+
+          From version 2.0 the application refuses to start without a usable
+          fence: it is the half of a restore marker that the database must not
+          carry, so backing up or restoring {option}`services.ovumcy.dataDir`
+          alone cannot roll it back.  Keep this directory out of your database
+          backups and never restore it together with the data - a fence that
+          comes back with the database detects nothing, while losing it on its
+          own is read as a restore and revokes sessions, local passwords,
+          recovery codes and webhook endpoints.
+
+          Use a path on persistent storage that is not part of any snapshot
+          taken with the SQLite file or the PostgreSQL dump.
+        '';
+      };
+
+      optOut = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Start the service with `CALENDAR_FEED_FENCE_OPTOUT=true` instead of
+          giving it a fence directory.  The application then boots, but it
+          disarms every calendar feed on every start and can no longer notice a
+          database restore, so a restored backup brings back sessions that were
+          signed out, passwords that were changed and webhook endpoints that
+          were removed.  Only accept this on an instance you knowingly run that
+          way.
+        '';
+      };
+    };
+
     # --- Managed PostgreSQL sub-option --------------------------------------
 
     postgres = {
@@ -282,6 +342,14 @@ in
     };
     users.groups.ovumcy = { };
 
+    # The application writes its fence file into this directory on first start,
+    # so it must exist and belong to the service user.  It is kept apart from
+    # services.ovumcy.dataDir on purpose: StateDirectory only covers the latter,
+    # and a backup of the fence together with the data would defeat the fence.
+    systemd.tmpfiles.rules = lib.optionals fenceEnabled [
+      "d ${cfg.calendarFeedFence.dataDir} 0750 ovumcy ovumcy -"
+    ];
+
     # --- Managed PostgreSQL -------------------------------------------------
     services.postgresql = lib.mkIf cfg.postgres.enable {
       enable = true;
@@ -298,7 +366,12 @@ in
     systemd.services.ovumcy = {
       description = "Ovumcy cycle tracker";
       wantedBy = [ "multi-user.target" ];
-      after = [ "network.target" ] ++ lib.optionals cfg.postgres.enable [ "postgresql.service" ];
+      after = [
+        "network.target"
+      ]
+      ++ lib.optionals cfg.postgres.enable [ "postgresql.service" ]
+      ++ lib.optionals fenceEnabled [ "systemd-tmpfiles-setup.service" ];
+      wants = lib.optionals fenceEnabled [ "systemd-tmpfiles-setup.service" ];
       requires = lib.optionals cfg.postgres.enable [ "postgresql.service" ];
 
       serviceConfig = {
@@ -322,7 +395,7 @@ in
         PrivateTmp = true;
         ProtectSystem = "strict";
         ProtectHome = true;
-        ReadWritePaths = [ cfg.dataDir ];
+        ReadWritePaths = [ cfg.dataDir ] ++ lib.optionals fenceEnabled [ cfg.calendarFeedFence.dataDir ];
         CapabilityBoundingSet = "";
         LockPersonality = true;
         MemoryDenyWriteExecute = true;
@@ -364,6 +437,9 @@ in
     services.ovumcy = lib.mkIf cfg.nginx.enable {
       cookieSecure = lib.mkDefault cfg.nginx.forceSSL;
       trustProxy = lib.mkDefault true;
+      # The virtual host above sets X-Real-IP to the direct peer address, which
+      # is what upstream recommends reading behind a trusted proxy.
+      proxyHeader = lib.mkDefault "X-Real-IP";
     };
 
   };
