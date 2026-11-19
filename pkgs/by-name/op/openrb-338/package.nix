@@ -19,17 +19,17 @@
 
 rustPlatform.buildRustPackage (finalAttrs: {
   pname = "openrb-338";
-  version = "2026.1113.1528";
+  version = "2026.1118.0919";
   __structuredAttrs = true;
 
   src = fetchFromGitHub {
     owner = "pingw33n";
     repo = "OpenRB-338";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-05kLn+yL5a/TfNbGz7UIS/qpVyLL7dBnQCLGEu5S0us=";
+    hash = "sha256-ymypAP7p+cKVFmoNIFngb3pgnjNqFD42dvWeeQl3sSs=";
   };
 
-  cargoHash = "sha256-/39AE6DrlIMWfyHoMRt2/KrpxiN6jQiyRX+cMxcT6/s=";
+  cargoHash = "sha256-w5vYeHcfn0j8/rKosX9uCafSfRCR5188q73kyG2zaAo=";
 
   nativeBuildInputs = [
     pkg-config
@@ -62,8 +62,22 @@ rustPlatform.buildRustPackage (finalAttrs: {
     python3
   ];
 
+  # crates/orb-plugin/tests/exports.rs spawns a nested `cargo build -p
+  # orb-plugin --lib --release` and dlopens the cdylib from
+  # target/release/liborb_plugin.so. The buildRustPackage hooks run cargo
+  # through an `env CARGO_BUILD_TARGET=<triple>` wrapper (see
+  # pkgs/build-support/rust/lib/default.nix), which the test process and its
+  # nested cargo inherit, so the library lands in
+  # target/<triple>/release/ and the test's plain target/release/ lookup
+  # finds only host build-script scratch there. Seed the expected path with
+  # the already-built cdylib.
+  preCheck = ''
+    cp -p target/*-*/release/liborb_plugin.so target/release/
+  '';
+
   postInstall = ''
     rm $out/bin/ui-art # developer icon-rendering tool, not a user command
+    rm $out/bin/xtask # developer task runner (new workspace member in 2026.1118)
 
     # substitute does not create the target's parent directory
     mkdir -p $out/share/applications
