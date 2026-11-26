@@ -11,6 +11,7 @@ let
   inherit (lib)
     mkEnableOption
     mkOption
+    mkPackageOption
     types
     mkIf
     getExe
@@ -23,6 +24,13 @@ in
 {
   options.services.oikb = {
     enable = mkEnableOption "oikb Open WebUI Knowledge Base sync service";
+
+    package = mkPackageOption pkgs "oikb" {
+      extraDescription = ''
+        Can be overridden to add optional dependencies, e.g.
+        `pkgs.oikb.overridePythonAttrs (old: { dependencies = old.dependencies ++ old.passthru.optional-dependencies.s3; })`.
+      '';
+    };
 
     port = mkOption {
       type = types.port;
@@ -86,9 +94,16 @@ in
   };
 
   config = mkIf cfg.enable {
+    assertions = [
+      {
+        assertion = daemonConfig == null || lib.hasPrefix "/etc/" cfg.configPath;
+        message = "services.oikb.configPath must be under /etc when services.oikb.daemonConfig is set.";
+      }
+    ];
+
     environment = {
       etc = lib.mkIf (daemonConfig != null) {
-        "oikb/config.yaml" = {
+        ${lib.removePrefix "/etc/" cfg.configPath} = {
           mode = "0444";
           text = daemonConfig;
         };
@@ -123,7 +138,7 @@ in
                     cfg.environmentFile != null
                   ) "--property=EnvironmentFile=${cfg.environmentFile} \\"}
                   -- \
-                  ${lib.getExe pkgs.oikb} "$@"
+                  ${getExe cfg.package} "$@"
               '')
             ];
           };
@@ -145,7 +160,7 @@ in
       };
 
       serviceConfig = {
-        ExecStart = "${getExe pkgs.oikb} daemon --port ${toString cfg.port} --config /etc/oikb/config.yaml ${lib.concatStringsSep " " cfg.extraArgs}";
+        ExecStart = "${getExe cfg.package} daemon --port ${toString cfg.port} --config ${cfg.configPath} ${lib.concatStringsSep " " cfg.extraArgs}";
         Restart = "on-failure";
         RestartSec = 5;
         DynamicUser = true;
@@ -154,7 +169,7 @@ in
         ConfigurationDirectory = "oikb";
         ConfigurationDirectoryMode = "0750";
       }
-      // (optionalAttrs (cfg.environmentFile != null || cfg.apiKeyFile) {
+      // (optionalAttrs (cfg.environmentFile != null || cfg.apiKeyFile != null) {
         EnvironmentFile =
           (optional (cfg.environmentFile != null) cfg.environmentFile)
           ++ (optional (cfg.apiKeyFile != null) cfg.apiKeyFile);
