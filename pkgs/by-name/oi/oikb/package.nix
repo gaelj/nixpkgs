@@ -13,7 +13,7 @@ python3Packages.buildPythonApplication (finalAttrs: {
   src = fetchFromGitHub {
     owner = "open-webui";
     repo = "oikb";
-    rev = "v${finalAttrs.version}";
+    tag = "v${finalAttrs.version}";
     hash = "sha256-zh8BtAurJH8lKhlPywqlMI6dw12iuYJ0uU81ARXDArQ=";
   };
 
@@ -77,8 +77,7 @@ python3Packages.buildPythonApplication (finalAttrs: {
   };
 
   # The upstream test suite hits network / external services (Confluence,
-  # Slack, S3, ...) via respx-mocked httpx clients; skip to keep the
-  # build hermetic
+  # Slack, S3, ...) via respx-mocked httpx clients
   doCheck = false;
 
   pythonImportsCheck = [ "oikb" ];
@@ -89,6 +88,7 @@ python3Packages.buildPythonApplication (finalAttrs: {
   meta = {
     description = "Sync anything to Open WebUI Knowledge Bases";
     homepage = "https://github.com/open-webui/oikb";
+    changelog = "https://github.com/open-webui/oikb/releases/tag/${finalAttrs.src.tag}";
     license = lib.licenses.mit;
     platforms = lib.platforms.all;
     mainProgram = "oikb";
