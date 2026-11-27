@@ -50,7 +50,7 @@ python3Packages.buildPythonApplication (finalAttrs: {
   #   oikb.overridePythonAttrs (old: {
   #     dependencies = old.dependencies ++ oikb.optional-dependencies.s3;
   #   })
-  passthru.optional-dependencies = with python3Packages; {
+  optional-dependencies = with python3Packages; {
     s3 = [ boto3 ];
     r2 = [ boto3 ];
     gcs = [ google-cloud-storage ];

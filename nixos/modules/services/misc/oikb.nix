@@ -15,7 +15,6 @@ let
     types
     mkIf
     getExe
-    concatStringsSep
     optionalAttrs
     optional
     optionalString
