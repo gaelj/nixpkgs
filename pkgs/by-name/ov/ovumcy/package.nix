@@ -3,27 +3,34 @@
   buildGoModule,
   buildNpmPackage,
   fetchFromGitHub,
+  fetchNpmDeps,
   nodejs,
 }:
 
 buildGoModule (finalAttrs: {
   pname = "ovumcy";
-  version = "2.2.1";
+  version = "2.3.0";
   __structuredAttrs = true;
 
   src = fetchFromGitHub {
     owner = "ovumcy";
     repo = "ovumcy-web";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-tDER9/b9MsL/bteuD1ZKTH61OPtiPM3tYtG98cdIDlk=";
+    hash = "sha256-Yq+hh8O9ymxXI8MXM5M2uSaGGTCOJwjj6QKI5fw4hkU=";
+  };
+
+  # Kept at the top level because nix-update only refreshes `pkg.npmDeps`; it
+  # never looks at hashes nested inside sub-derivations such as `frontend`.
+  npmDeps = fetchNpmDeps {
+    name = "ovumcy-frontend-${finalAttrs.version}-npm-deps";
+    inherit (finalAttrs) src;
+    hash = "sha256-/jv0hxrwgM+A2rOVM8ElZiErUO85gwW3uUfEc/+2blc=";
   };
 
   frontend = buildNpmPackage {
     pname = "ovumcy-frontend";
-    inherit (finalAttrs) version src;
+    inherit (finalAttrs) version src npmDeps;
     inherit nodejs;
-
-    npmDepsHash = "sha256-L6ru6pbBBDnm5w2o40qOBvg2jMXFEAWe6FVpXNjZ6rQ=";
 
     installPhase = ''
       runHook preInstall
@@ -38,7 +45,7 @@ buildGoModule (finalAttrs: {
     substituteInPlace go.mod --replace-fail 'go 1.27.4' 'go 1.27.3'
   '';
 
-  vendorHash = "sha256-JYmKyTW/eemmtQ6bGNEWMuXVVtL0KmYA83li3KWnPnc=";
+  vendorHash = "sha256-Cvuq1ZjFpvr0dk6RFYYU4tyVoYuWN6zl3HcrIV3UlFg=";
 
   subPackages = [ "cmd/ovumcy" ];
 
