@@ -46,11 +46,6 @@ stdenv.mkDerivation (finalAttrs: {
     systemdLibs
   ];
 
-  outputs = [
-    "out"
-    "man"
-  ];
-
   postFixup = ''
     wrapProgram $out/bin/tang-show-keys --prefix PATH ":" ${lib.makeBinPath [ jose ]}
     wrapProgram $out/libexec/tangd-keygen --prefix PATH ":" ${lib.makeBinPath [ jose ]}
