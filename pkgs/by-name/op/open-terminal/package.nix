@@ -7,14 +7,14 @@
 
 python3Packages.buildPythonApplication (finalAttrs: {
   pname = "open-terminal";
-  version = "0.18.6";
+  version = "0.18.8";
   pyproject = true;
 
   src = fetchFromGitHub {
     owner = "open-webui";
     repo = "open-terminal";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-p0igNQWo7t4hyxUJtOr0dUMSV9FaRLNBxgwZwAsYD/4=";
+    hash = "sha256-/HTO4ZUmkToTBgCGdKI6KTQv4DlFpSAkyanLxDDYKtM=";
   };
 
   build-system = with python3Packages; [ hatchling ];
